@@ -24,6 +24,9 @@ git clone <this-repo> ~/harness
 | `impl-review` | 구현 맥락이 없는 리뷰어가 diff를 설계·컨벤션·체크리스트로 리뷰 | "머지 전에 내 변경사항 리뷰해줘" |
 | `trace-flow` | 엔드포인트/메시지/배치 하나를 끝까지 추적 | "POST /api/orders 흐름 따라가줘" |
 | `harness-install` | 하네스 설치·업데이트·제거 | "하네스 업데이트해줘" |
+| `harness-help` | 사용법 안내 ([USAGE.md](skills/harness-help/USAGE.md)) | "하네스 사용법 알려줘" |
+
+터미널에서는 `harness help`, `harness skills`, `harness status`, `harness update`, `harness scan <경로>`를 쓸 수 있습니다. 글로벌 설치 시 `~/.local/bin/harness`에 링크됩니다.
 
 `repo-onboarding`은 **Java/Kotlin(Spring)** 과 **.NET(C#, 레거시 .NET Framework 포함)** 에 맞춘 참조 문서를 갖고 있습니다.
 0단계는 `repo-scan.sh`가 LLM 없이 스택, 진입점, 데이터, 설정, 핫스팟을 스캔합니다. 단독으로도 쓸 수 있습니다.

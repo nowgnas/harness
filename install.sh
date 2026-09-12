@@ -194,6 +194,19 @@ for agent in $AGENTS; do
   fi
 done
 
+# 글로벌 모드: 터미널 명령 harness
+if [ "$MODE" = global ]; then
+  echo
+  echo "[cli]"
+  handle_link "$HARNESS_DIR/bin/harness" "$HOME/.local/bin/harness"
+  if [ "$ACTION" = install ]; then
+    case ":$PATH:" in
+      *":$HOME/.local/bin:"*) ;;
+      *) echo "  참고: ~/.local/bin 이 PATH에 없습니다. 셸 설정에 export PATH=\"\$HOME/.local/bin:\$PATH\" 를 추가하세요." ;;
+    esac
+  fi
+fi
+
 # 프로젝트 모드: 심링크가 커밋되지 않도록 로컬 전용 exclude 에 등록
 if [ "$MODE" = project ] && [ -d "$PROJECT/.git" ]; then
   echo

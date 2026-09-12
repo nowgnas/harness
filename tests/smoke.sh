@@ -25,6 +25,7 @@ for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
   done
   check "$s: 참조 파일 존재${missing:+ (없음:$missing)}" '[ -z "$missing" ]'
 done
+check "USAGE.md 에 모든 스킬 안내" '( for s in $(ls "$HARNESS_DIR/skills"); do grep -q "\`$s\`" "$HARNESS_DIR/skills/harness-help/USAGE.md" || exit 1; done )'
 check "core/AGENTS.md 에 모든 스킬 등록" '( for s in $(ls "$HARNESS_DIR/skills"); do grep -q "\`$s\`" "$HARNESS_DIR/core/AGENTS.md" || exit 1; done )'
 
 echo "▶ 글로벌 설치"
@@ -40,6 +41,12 @@ done
 for a in "$HARNESS_DIR"/adapters/claude/agents/*.md; do
   check "claude 서브에이전트 링크: $(basename "$a")" '[ "$(readlink "$HOME/.claude/agents/$(basename "$a")")" = "$a" ]'
 done
+H="$HOME/.local/bin/harness"
+check "harness CLI 링크" '[ "$(readlink "$H")" = "$HARNESS_DIR/bin/harness" ]'
+check "harness help (심링크 경유)" '"$H" help | grep -q "하네스 사용법"'
+check "harness help <스킬>" '"$H" help bug-fix | grep -q "^name: bug-fix"'
+check "harness skills 가 모든 스킬 출력" '[ "$("$H" skills | wc -l | tr -d " ")" = "$(ls "$HARNESS_DIR/skills" | wc -l | tr -d " ")" ]'
+check "harness 잘못된 명령은 실패" '! "$H" nope >/dev/null 2>&1'
 check "CLAUDE.md 기존 내용 보존" '[ "$(head -1 "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
 check "CLAUDE.md import 블록" 'contains "$HOME/.claude/CLAUDE.md" "@$HARNESS_DIR/core/AGENTS.md"'
 check "Codex AGENTS.md 기존 내용 보존" 'contains "$CODEX_HOME/AGENTS.md" "# existing codex rules"'
@@ -68,6 +75,7 @@ echo "▶ 제거"
 "$INSTALL" --uninstall --agents claude,codex > "$TMP/out5.txt"
 check "claude 스킬 링크 제거" '[ ! -e "$HOME/.claude/skills/repo-onboarding" ]'
 check "codex 스킬 링크 제거" '[ ! -e "$HOME/.agents/skills/repo-onboarding" ]'
+check "harness CLI 링크 제거" '[ ! -e "$HOME/.local/bin/harness" ]'
 check "CLAUDE.md 원상복구" '[ "$(cat "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
 check "Codex AGENTS.md 원상복구" '[ "$(cat "$CODEX_HOME/AGENTS.md")" = "# existing codex rules" ]'
 

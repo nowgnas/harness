@@ -23,5 +23,6 @@
 
 ## 규칙
 - 스크립트는 macOS 기본 bash 3.2에서 동작해야 한다 (연관 배열, `mapfile`, `${v,,}` 금지).
-- 새 스킬을 추가하면 `core/AGENTS.md`의 스킬 목록과 `README.md`를 갱신한다.
+- 새 스킬을 추가하면 `core/AGENTS.md`의 스킬 목록, `skills/harness-help/USAGE.md`, `README.md`를 갱신한다.
+- 터미널 명령은 `bin/harness` (글로벌 설치 시 `~/.local/bin/harness`로 링크).
 - 변경 후 `tests/smoke.sh`를 실행한다.

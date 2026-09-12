@@ -27,3 +27,4 @@
 - `impl-review` — 구현 맥락이 없는 독립 리뷰어가 diff를 설계·컨벤션·체크리스트에 대조해 리뷰.
 - `trace-flow` — API 엔드포인트·메시지·배치 하나를 진입점부터 DB/외부 호출까지 추적.
 - `harness-install` — 하네스를 글로벌/프로젝트에 설치·업데이트·제거.
+- `harness-help` — 하네스 사용법 안내. 터미널에서는 `harness help`.

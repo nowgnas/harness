@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# harness — 개인 하네스 CLI. 사용법: harness help
+set -euo pipefail
+
+self="${BASH_SOURCE[0]}"
+while [ -L "$self" ]; do
+  target="$(readlink "$self")"
+  case "$target" in /*) self="$target" ;; *) self="$(dirname "$self")/$target" ;; esac
+done
+HARNESS_DIR="$(cd "$(dirname "$self")/.." && pwd)"
+
+usage() {
+  cat <<EOF
+사용법: harness <명령>
+  help [스킬]  skills  status  update  install [옵션]  uninstall [옵션]  scan [경로]  test  version
+자세한 내용: harness help
+EOF
+}
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift
+
+case "$cmd" in
+  help|-h|--help)
+    if [ $# -gt 0 ]; then
+      f="$HARNESS_DIR/skills/$1/SKILL.md"
+      [ -f "$f" ] || { echo "스킬을 찾을 수 없습니다: $1 (harness skills 로 목록 확인)" >&2; exit 1; }
+      cat "$f"
+    else
+      cat "$HARNESS_DIR/skills/harness-help/USAGE.md"
+    fi ;;
+  skills)
+    for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
+      printf '  %-24s %s\n' "$(sed -n 's/^name: *//p' "$f" | head -1)" \
+        "$(sed -n 's/^description: *//p' "$f" | head -1 | cut -d. -f1)."
+    done ;;
+  status)    exec "$HARNESS_DIR/install.sh" --status "$@" ;;
+  install)   [ $# -eq 0 ] && set -- --global; exec "$HARNESS_DIR/install.sh" "$@" ;;
+  update)    git -C "$HARNESS_DIR" pull --ff-only && exec "$HARNESS_DIR/install.sh" --global "$@" ;;
+  uninstall) exec "$HARNESS_DIR/install.sh" --uninstall "$@" ;;
+  scan)      exec bash "$HARNESS_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "${1:-.}" ;;
+  test)      exec bash "$HARNESS_DIR/tests/smoke.sh" ;;
+  version)   git -C "$HARNESS_DIR" log -1 --format='%h (%ad) %s' --date=short ;;
+  *)         echo "알 수 없는 명령: $cmd" >&2; usage >&2; exit 2 ;;
+esac
