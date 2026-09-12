@@ -14,13 +14,26 @@ fail() { echo "  ✗ $1"; FAIL=$((FAIL + 1)); }
 check() { if eval "$2"; then ok "$1"; else fail "$1"; fi; }
 contains() { grep -qF -- "$2" "$1" 2>/dev/null; }
 
+echo "▶ 스킬 구조"
+for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
+  d="$(dirname "$f")"; s="$(basename "$d")"
+  check "$s: frontmatter name 일치" '[ "$(sed -n "s/^name: *//p" "$f" | head -1)" = "$s" ]'
+  check "$s: description 존재" 'grep -qE "^description: .{20,}" "$f"'
+  missing=""
+  for ref in $(grep -oE '(\.\./[a-z-]+/)?(references|templates|scripts)/[A-Za-z0-9_./-]+\.(md|sh)' "$f" | sort -u); do
+    [ -e "$d/$ref" ] || missing="$missing $ref"
+  done
+  check "$s: 참조 파일 존재${missing:+ (없음:$missing)}" '[ -z "$missing" ]'
+done
+check "core/AGENTS.md 에 모든 스킬 등록" '( for s in $(ls "$HARNESS_DIR/skills"); do grep -q "\`$s\`" "$HARNESS_DIR/core/AGENTS.md" || exit 1; done )'
+
 echo "▶ 글로벌 설치"
 printf '@RTK.md\n' > "$HOME/.claude/CLAUDE.md"
 printf '# existing codex rules\n' > "$CODEX_HOME/AGENTS.md"
 "$INSTALL" --global --agents claude,codex --dry-run > "$TMP/dry.txt"
 check "dry-run 은 아무것도 만들지 않음" '[ ! -e "$HOME/.claude/skills" ] && [ "$(cat "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
 "$INSTALL" --global --agents claude,codex > "$TMP/out1.txt"
-for s in repo-onboarding trace-flow harness-install; do
+for s in repo-onboarding trace-flow harness-install feature-implementation; do
   check "claude 스킬 링크: $s" '[ "$(readlink "$HOME/.claude/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ]'
   check "codex 스킬 링크: $s" '[ "$(readlink "$HOME/.agents/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ]'
 done
