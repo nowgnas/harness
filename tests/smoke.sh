@@ -33,11 +33,13 @@ printf '# existing codex rules\n' > "$CODEX_HOME/AGENTS.md"
 "$INSTALL" --global --agents claude,codex --dry-run > "$TMP/dry.txt"
 check "dry-run 은 아무것도 만들지 않음" '[ ! -e "$HOME/.claude/skills" ] && [ "$(cat "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
 "$INSTALL" --global --agents claude,codex > "$TMP/out1.txt"
-for s in repo-onboarding trace-flow harness-install feature-implementation; do
+for s in $(ls "$HARNESS_DIR/skills"); do
   check "claude 스킬 링크: $s" '[ "$(readlink "$HOME/.claude/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ]'
   check "codex 스킬 링크: $s" '[ "$(readlink "$HOME/.agents/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ]'
 done
-check "claude 서브에이전트 링크" '[ -L "$HOME/.claude/agents/repo-explorer.md" ]'
+for a in "$HARNESS_DIR"/adapters/claude/agents/*.md; do
+  check "claude 서브에이전트 링크: $(basename "$a")" '[ "$(readlink "$HOME/.claude/agents/$(basename "$a")")" = "$a" ]'
+done
 check "CLAUDE.md 기존 내용 보존" '[ "$(head -1 "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
 check "CLAUDE.md import 블록" 'contains "$HOME/.claude/CLAUDE.md" "@$HARNESS_DIR/core/AGENTS.md"'
 check "Codex AGENTS.md 기존 내용 보존" 'contains "$CODEX_HOME/AGENTS.md" "# existing codex rules"'

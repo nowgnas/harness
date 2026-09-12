@@ -19,7 +19,9 @@ git clone <this-repo> ~/harness
 | 스킬 | 용도 | 예시 요청 |
 |---|---|---|
 | `repo-onboarding` | 처음 보는 레포 파악 → `.onboarding/`에 문서 생성 | "이 레포 파악해줘", "quick 모드로 온보딩" |
-| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 요약 | "주문 취소 API 추가해줘" |
+| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 독립 리뷰 → 요약 | "주문 취소 API 추가해줘" |
+| `bug-fix` | 재현(실패 테스트) → 원인 입증 → 수정 계획 → 최소 수정 → 영향 데이터 점검 | "이 스택트레이스 원인 찾아서 고쳐줘" |
+| `impl-review` | 구현 맥락이 없는 리뷰어가 diff를 설계·컨벤션·체크리스트로 리뷰 | "머지 전에 내 변경사항 리뷰해줘" |
 | `trace-flow` | 엔드포인트/메시지/배치 하나를 끝까지 추적 | "POST /api/orders 흐름 따라가줘" |
 | `harness-install` | 하네스 설치·업데이트·제거 | "하네스 업데이트해줘" |
 
@@ -47,19 +49,21 @@ git clone <this-repo> ~/harness
 ```
 요구사항 정리 → 정책 점검(✅/❓/⚠️) → 코드 맥락·컨벤션 파악 → 구현 설계
    → [게이트] 질문 해소 + 설계 승인 + 테스트 계획 합의
-   → 구현 → 검증(빌드·테스트·린트) → 셀프 리뷰 → 핵심 구현 요약
+   → 구현 → 검증(빌드·테스트·린트) → 독립 리뷰(impl-review) → 핵심 구현 요약
 ```
 
 - 게이트를 통과하기 전에는 소스 코드를 수정하지 않습니다. 작은 변경은 경량 모드로 설계를 5줄 요약만 하고 확인받습니다.
 - 결과는 대상 레포의 `.design/<YYYYMMDD>-<slug>/`에 `DESIGN.md`와 `SUMMARY.md`로 남습니다. 커밋되지 않습니다.
 - 컨벤션·가독성 가이드: [conventions.md](skills/feature-implementation/references/conventions.md), [readable-code.md](skills/feature-implementation/references/readable-code.md)
+- DB 변경: [db-migration.md](skills/feature-implementation/references/db-migration.md) — expand → contract, DB별 락 주의점, 백필, 롤백
+- 독립 리뷰: Claude는 `impl-reviewer` 서브에이전트, Codex는 `codex exec -s read-only` 새 세션으로 실행합니다. 둘 다 안 되면 자체 리뷰로 대신하고 "독립 리뷰 아님"을 표시합니다.
 
 ## 설치 위치
 
 | | Claude Code | Codex |
 |---|---|---|
 | 스킬 (심링크) | `~/.claude/skills/<name>` | `~/.agents/skills/<name>` |
-| 서브에이전트 (심링크) | `~/.claude/agents/repo-explorer.md` | — |
+| 서브에이전트 (심링크) | `~/.claude/agents/{repo-explorer,impl-reviewer}.md` | — (`codex exec`로 대체) |
 | 공통 규칙 | `~/.claude/CLAUDE.md`에 `@…/core/AGENTS.md` import 블록 | `~/.codex/AGENTS.md`에 `core/AGENTS.md` 내용 블록 |
 
 - 기존 파일 내용은 그대로 두고, `<!-- harness:start -->` ~ `<!-- harness:end -->` 블록만 관리합니다.
