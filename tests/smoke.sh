@@ -96,6 +96,11 @@ sum1="$(snap)"
 "$INSTALL" --global --agents claude,codex > "$TMP/out2.txt"
 check "두 번째 실행은 변경 0건" 'contains "$TMP/out2.txt" "변경 0건"'
 check "설정 파일 내용 동일" '[ "$sum1" = "$(snap)" ]'
+# 빈 config.toml(새 머신)에서는 최상위 키 삽입 간격 때문에 한 번 더 설치해야 수렴하던 적이 있다
+FRESH="$TMP/fresh"; mkdir -p "$FRESH/.codex"
+HOME="$FRESH" CODEX_HOME="$FRESH/.codex" "$INSTALL" --global --agents claude,codex > "$TMP/fresh1.txt" 2>&1
+HOME="$FRESH" CODEX_HOME="$FRESH/.codex" "$INSTALL" --status --global --agents claude,codex > "$TMP/fresh-status.txt" 2>&1
+check "빈 HOME: 설치 한 번으로 status 전부 OK" '! grep -qE "^  (STALE|MISSING|CONFLICT|BROKEN)" "$TMP/fresh-status.txt"'
 
 echo "▶ 모델 라우팅 CLI"
 "$H" model > "$TMP/model.txt"
@@ -158,6 +163,29 @@ allow_case "Write /tmp 파일" '{"tool_name":"Write","tool_input":{"file_path":"
 allow_case "하네스 링크를 통한 수정" "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$HOME/.claude/skills/bug-fix/SKILL.md\"}}"
 allow_case "harness install" '{"tool_name":"Bash","tool_input":{"command":"harness install --dry-run"}}'
 allow_case "잘못된 JSON" 'not json'
+
+echo "▶ stale 감지 훅"
+STALE_HOOK="$HARNESS_DIR/hooks/harness-stale/stale.py"
+stale_out() { printf '%s' "${1-\{\}}" | python3 "$STALE_HOOK"; }
+check "훅 등록: Claude SessionStart (codex 는 대상 아님)" 'python3 -c "
+import json
+d=json.load(open(\"$HOME/.claude/settings.json\"))
+cmds=[h[\"command\"] for g in d[\"hooks\"][\"SessionStart\"] for h in g[\"hooks\"]]
+assert any(\"--harness-hook harness-stale\" in c for c in cmds), cmds
+c=json.load(open(\"$CODEX_HOME/hooks.json\"))
+assert not any(\"harness-stale\" in h[\"command\"] for g in c[\"hooks\"][\"SessionStart\"] for h in g[\"hooks\"])"'
+check "설치·최신 상태에서는 조용함" '[ -z "$(stale_out)" ]'
+cp "$HOME/.claude/agents/git-ops.md" "$TMP/git-ops.bak"
+printf '\n손댄 줄\n' >> "$HOME/.claude/agents/git-ops.md"
+check "설치본이 다르면 SessionStart 맥락으로 알림" 'stale_out | python3 -c "
+import json,sys
+d=json.load(sys.stdin)[\"hookSpecificOutput\"]
+assert d[\"hookEventName\"]==\"SessionStart\"
+assert \"harness install\" in d[\"additionalContext\"]
+assert \"git-ops\" in d[\"additionalContext\"]"'
+cp "$TMP/git-ops.bak" "$HOME/.claude/agents/git-ops.md"
+check "깨진 입력에도 통과 (fail-open)" 'stale_out "not json" >/dev/null 2>&1'
+check "하네스 미설치 HOME 에서는 조용함" '[ -z "$(HOME="$TMP/empty-home" CODEX_HOME="$TMP/empty-home/.codex" printf "{}" | HOME="$TMP/empty-home" CODEX_HOME="$TMP/empty-home/.codex" python3 "$STALE_HOOK")" ]'
 
 echo "▶ 충돌·정리"
 rm "$HOME/.claude/skills/trace-flow"; mkdir -p "$HOME/.claude/skills/trace-flow"; echo mine > "$HOME/.claude/skills/trace-flow/SKILL.md"

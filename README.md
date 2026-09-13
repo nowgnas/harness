@@ -27,6 +27,7 @@ harness help                      # 사용법
 | 플러그인·MCP | — | 조회만 (`harness list plugins`, `harness list mcp`) | 조회만 |
 
 - 기존 설정은 보존합니다. 지시 파일은 `<!-- harness:start -->` 블록만, 훅 파일은 `--harness-hook` 표식이 있는 항목만 관리합니다.
+- 레포를 고친 뒤 `harness install`을 잊으면 `harness-stale` 훅이 다음 세션 시작 때 알려 줍니다(생성물만 해당. 스킬은 심링크라 즉시 반영).
 - 같은 이름이 이미 있으면 `SKIP`합니다. `--force`를 주면 `~/.harness-backups/<시각>/`에 백업한 뒤 교체합니다.
 - 하네스에서 지운 항목의 링크는 다음 설치 때 정리됩니다(`PRUNE`).
 

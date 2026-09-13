@@ -8,6 +8,7 @@ description: 스킬·룰·훅·서브에이전트·모델 라우팅을 하네스
 에이전트 설정의 원본은 하네스 레포다. `~/.claude/skills`, `~/.agents/skills`, `~/.claude/agents`,
 훅 설정 파일(`~/.claude/settings.json`, `~/.codex/hooks.json`), 지시 파일의 harness 블록에 직접 쓰지 않는다.
 직접 쓰려고 하면 `guard-agent-config` 훅이 막는다.
+세션 시작 때 `harness-stale` 훅이 "설치본이 레포와 다르다"고 알리면, 사용자에게 보고하고 `harness install --dry-run` → 승인 후 `harness install` 로 갱신한다(훅이 직접 설치하지는 않는다).
 
 ## 1. 조회 — 파일을 읽지 말고 CLI로
 | 목적 | 명령 |
