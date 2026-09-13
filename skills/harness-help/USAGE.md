@@ -66,6 +66,8 @@
 
 기본 훅 `guard-agent-config`는 `~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`, `~/.claude/agents`에 직접 쓰는 것을 막습니다. 하네스로 이어지는 링크를 통한 수정은 허용합니다. 끄려면 `harness hook disable guard-agent-config` → `harness install`.
 
+기본 훅 `harness-stale`(Claude `SessionStart`)은 설치본이 레포와 다르면 세션 시작 때 알립니다. 스킬은 심링크라 레포를 고치면 바로 반영되지만 룰 블록·서브에이전트·훅·모델은 `install.sh`가 만드는 생성물이라 레포만 고치면 낡은 상태로 남기 때문입니다. 판단은 `install.sh --status`가 하고, 훅은 알리기만 합니다(설치는 사용자 승인 후 `harness install`). 끄려면 `harness hook disable harness-stale` → `harness install`.
+
 ## 작업 유형별 모델
 
 `models.json`이 작업 유형(설계·구현·리뷰·탐색·git·문서·조회)마다 쓸 모델을 정합니다. 작업은 티어(deep / standard / fast)에 묶이고, 티어는 에이전트별 모델로 이어집니다. 현재 표는 `harness model`로 확인합니다.

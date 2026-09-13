@@ -201,6 +201,18 @@ def managed_name(group):
     return None
 
 
+def installed_agents():
+    """지시 파일에 하네스 블록이 있는 에이전트. 설치하지 않은 에이전트를 갱신 대상에서 뺀다."""
+    out = []
+    for agent, f in RULE_FILES.items():
+        try:
+            if BLOCK_START in f.read_text(encoding="utf-8"):
+                out.append(agent)
+        except OSError:
+            pass
+    return out
+
+
 def hook_installed(hook):
     res = {}
     for agent in ("claude", "codex"):
@@ -1089,7 +1101,10 @@ def toml_set_top(text, key, value):
         if re.match(rf"\s*{re.escape(key)}\s*=", lines[i]):
             lines[i] = new
             return "\n".join(lines)
-    return "\n".join([new] + lines)
+    # 최상위 키는 테이블·주석 앞에 와야 한다. 빈 파일에 블록만 있던 경우 set_block 과 같은
+    # 간격(키 뒤 빈 줄)으로 맞춘다. 그러지 않으면 다음 실행이 같은 내용을 계속 STALE 로 본다.
+    sep = [] if not lines or not lines[0].strip() or re.match(r'\s*[\w."\'-]+\s*=', lines[0]) else [""]
+    return "\n".join([new] + sep + lines)
 
 
 def agent_installed(g):
