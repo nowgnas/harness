@@ -100,5 +100,6 @@ tests/smoke.sh          임시 HOME에서 설치·조회·관리·훅 검증
 
 ```bash
 knack update       # git pull + 재설치
+knack reinstall    # 제거 후 다시 설치 (설치 상태가 꼬였거나 다른 클론으로 옮길 때)
 knack uninstall    # 하네스가 만든 링크·블록·훅만 제거
 ```

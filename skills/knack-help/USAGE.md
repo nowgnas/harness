@@ -164,6 +164,7 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 | `knack usage [--since 7d] [--by session\|model\|day\|skill\|cwd] [--json]` | 세션 로그 기반 토큰 사용량 집계 |
 | `knack bench <init\|ab\|run [--baseline]\|compare\|list\|baseline>` | 작업 세트를 조건별로 실행·비교 (`knack bench --help`) |
 | `knack install [--dry-run] [--project <path>] [--agents claude,codex] [--force]` | 설치 (기본값: 글로벌) |
+| `knack reinstall [옵션]` | 제거 후 다시 설치. 설치 상태가 꼬였을 때, 또는 다른 클론으로 옮길 때 |
 | `knack status` / `knack update` / `knack uninstall` | 상태 / git pull 후 재설치 / 제거 |
 | `knack help [스킬]` · `knack scan [경로]` · `knack test` · `knack version` | 사용법 · 레포 스캔 · 스모크 테스트 · 버전 |
 
@@ -173,6 +174,21 @@ git clone https://github.com/nowgnas/knack.git ~/knack && ~/knack/install.sh --g
 knack update                                                                              # 업데이트
 ```
 설치하거나 업데이트한 뒤에는 새 에이전트 세션부터 반영됩니다.
+
+### 클론이 여러 개일 때 (하네스 수정용 / 사용자용)
+
+레포를 수정하는 폴더와 사용자로 쓰는 클론을 따로 두어도 됩니다. 설치본은 **마지막으로 `install` 한 클론**을 가리킵니다.
+
+```bash
+cd ~/knack && ./install.sh --global     # 이 클론으로 넘겨받기
+knack reinstall                         # 꼬였을 때: 제거 후 다시 설치
+knack status                            # 어느 클론을 가리키는지 확인
+```
+
+- 다른 knack 클론이 만든 링크는 `--force` 없이 교체됩니다(백업도 쌓이지 않습니다). 사용자가 직접 만든 파일·링크는 여전히 `SKIP` 으로 보호됩니다.
+- `knack status` 는 다른 클론을 가리키는 항목을 `STALE ... (다른 knack 클론을 가리킴)` 으로 보고합니다.
+- `knack reinstall --dry-run` 은 아무것도 바꾸지 않습니다. 다만 제거가 실제로 일어나지 않으므로 설치 단계의 예정 건수는 현재 상태 기준으로 적게 나옵니다.
+- 수정용 폴더에서 `git pull` 만 하고 사용자용 클론을 설치해 두면, 수정 내용은 반영되지 않습니다. 어느 쪽이 설치돼 있는지는 `knack status` 로 확인하세요.
 
 ### harness 에서 개명한 경우
 

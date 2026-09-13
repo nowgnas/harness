@@ -150,7 +150,8 @@ def _filter_dir(h, report, generated=False):
             ours = h.in_knack(e) or (e.is_symlink() and os.readlink(e).startswith(str(h.KNACK)))
             if not ours and generated and e.is_file() and not e.is_symlink():
                 try:
-                    ours = h.GEN_MARK in e.read_text(encoding="utf-8")[:4000]
+                    head = e.read_text(encoding="utf-8")[:4000]
+                    ours = h.GEN_MARK in head or h.OLD_GEN_MARK in head
                 except OSError:
                     pass
             if ours:
