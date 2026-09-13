@@ -93,6 +93,10 @@
 - 작업 파일 기본 위치는 `~/.harness-bench/tasks.json`입니다(`harness bench init`으로 생성).
 - baseline은 전역 설정을 건드리지 않고 `~/.harness-bench/baseline-home`의 HOME 미러로 실행합니다. 하네스 스킬·서브에이전트, 지시 파일의 harness 블록, 하네스 훅, Codex 역할 블록만 빠지고 인증·프록시 설정·캐시·세션 로그 폴더는 원본 링크입니다. 빠지는 항목은 `harness bench baseline`으로 확인합니다.
 - 에이전트에게 "하네스 벤치 돌려줘, repeat 2"라고 하면 `harness-manage` 절차로 작업 파일을 확인하고 `harness bench ab --repeat 2`를 실행합니다. 오래 걸리므로 Claude는 백그라운드로 실행하고, Codex는 샌드박스 밖 작업이라 명령을 안내합니다.
+- 앱 세션(에이전트가 CLI를 중첩 실행) 안에서 돌릴 때 주의할 점:
+  - 작업당 기본 타임아웃이 1800초라 포그라운드로는 세션 턴이 먼저 끊깁니다. `nohup harness bench ab --repeat 2 > ~/.harness-bench/ab.log 2>&1 &` 처럼 백그라운드로 돌리고 로그를 확인합니다.
+  - baseline 조건은 `CLAUDE_CONFIG_DIR` 를 떼고 실행하지만 현재 설정 조건은 세션의 환경변수를 그대로 물려받습니다. 앱이 `CLAUDE_CONFIG_DIR` 같은 변수를 설정해 두면 두 조건의 설정이 달라지니 `env | grep -i 'claude\|codex'` 로 먼저 확인합니다.
+  - 원격·웹 세션에서는 HOME 에 하네스 설치·CLI 로그인·대상 레포가 없어서 실행할 수 없습니다. 벤치는 로컬 머신에서 돌립니다.
 - 에이전트는 PATH의 `claude`/`codex` 바이너리로 실행됩니다(셸 함수·별칭은 적용되지 않음). headroom 같은 래퍼를 거치려면 `--agent-cmd 'headroom wrap claude --'` 또는 환경변수 `HARNESS_CLAUDE_CMD`를 씁니다. `harness run`도 같은 환경변수를 따릅니다.
 - 비대화 실행에는 CLI 로그인이 필요합니다. `401 authentication_error`가 나면 터미널에서 `claude`(또는 `codex`)를 실행해 로그인한 뒤 다시 시도합니다.
 - 모든 옵션: `harness bench --help`, `harness bench ab --help`
