@@ -193,6 +193,11 @@ models_index() {
   command -v python3 >/dev/null 2>&1 || return 0
   python3 "$HARNESS_DIR/lib/harness.py" models-index --agent "$1" 2>/dev/null || true
 }
+# 사용자 페르소나(설정했을 때만). 결정에 쓰이는 사실이라 블록 맨 앞에 둔다
+persona_block() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$HARNESS_DIR/lib/harness.py" persona-block 2>/dev/null || true
+}
 
 # ── 항목 목록 ─────────────────────────────────
 skill_names() { for d in "$HARNESS_DIR"/skills/*/; do [ -f "$d/SKILL.md" ] && basename "$d"; done; }
@@ -226,8 +231,10 @@ rule_body() {  # frontmatter 와 앞뒤 빈 줄 제거
              for (i = s; i <= n; i++) print buf[i] }' "$1"
 }
 claude_rules() {
-  always_rules | sed 's/^/@/'
   local idx
+  idx="$(persona_block)"
+  [ -z "$idx" ] || printf '%s\n\n' "$idx"
+  always_rules | sed 's/^/@/'
   idx="$(ondemand_index)"
   [ -z "$idx" ] || printf '\n%s\n' "$idx"
   idx="$(models_index claude)"
@@ -235,6 +242,8 @@ claude_rules() {
 }
 codex_rules() {
   local f first=1 idx
+  idx="$(persona_block)"
+  [ -z "$idx" ] || printf '%s\n\n' "$idx"
   while IFS= read -r f; do
     [ $first -eq 1 ] || echo
     first=0

@@ -16,6 +16,7 @@
 | 버그 | "이 에러 원인 찾아서 고쳐줘" + 스택트레이스·로그 | `bug-fix` | `.design/<날짜>-bug-<slug>/BUGFIX.md` |
 | 머지 전 리뷰 | "내 변경사항 리뷰해줘" | `impl-review` | `.design/.../REVIEW.md` |
 | 스킬·룰·훅 설치·관리 | "이 스킬 설치해줘", "훅 추가해줘", "하네스 업데이트해줘" | `harness-manage` | 하네스 레포 변경 |
+| 내 정보 등록 | "내 정보 등록해줘", "페르소나 수정해줘" (자기소개 파일이 있으면 함께) | `persona` | `persona/core.md`, `persona/detail/*.md` |
 | 사용법 | "하네스 사용법 알려줘" | `harness-help` | — |
 
 ## 스킬별 요약
@@ -24,6 +25,11 @@
 - 모드: `quick`(0~2단계, 5분 내외) / `standard`(기본, 0~6단계) / `deep`(0~7단계, 리스크 분석)
 - 단계: 스캔 → 큰 그림 → 진입점 → 핵심 흐름 → 데이터 → 연동 → 운영 → 리스크
 - 재실행하면 문서에 기록된 기준 커밋 이후의 변경분만 갱신합니다.
+
+### persona — 사용자 페르소나 정리
+- 원자료(대화·자기소개 파일)를 **결정 형태**로 바꿔 저장합니다. "10년차 시니어" → 버림, "새 의존성은 먼저 묻는다" → `defaults`
+- core(매 세션 주입, 15줄 이내)와 상세(`persona show <주제>` 로 필요할 때)를 나눕니다
+- 저장 후 사용자 승인을 받아 `harness install` 로 반영합니다
 
 ### trace-flow — 요청 흐름 추적
 - 입력: `METHOD /path`, 토픽·큐 이름, 배치 잡, `Class.method`
@@ -82,6 +88,27 @@
 - 스크립트로 고르기: `harness model which "<요청>"`(키워드 분류), `harness model get <작업> --agent codex --format flags`, `harness run auto -- "<요청>"`(맞는 모델로 새 세션 실행).
 - 바꾸기: `harness model set git haiku --agent claude`, `harness model set implement deep`, `harness model set main deep --agent codex` → `harness install`.
 
+## 사용자 페르소나
+
+에이전트가 **되묻거나 잘못 추측할 것**을 미리 못 박아 두는 사실 모음입니다. 정체성·포부가 아니라 결정을 담습니다 —
+"이 줄이 없으면 에이전트가 무엇을 잘못하거나 되묻는가?"에 답이 없는 줄은 넣지 않습니다.
+
+| 명령 | 용도 |
+|---|---|
+| `harness persona init` → 템플릿 채우기 | `persona/core.md` 생성. 매 세션 지시 블록에 주입되므로 15줄 이내로 유지 |
+| `harness persona set <키> "<값>"` | 항목 하나 수정·추가. 값에 `;` 를 쓰면 목록 (예: `set defaults "A; B"`) |
+| `cat me.md \| harness persona import -` | 파일·표준입력으로 통째로 넣기 (스크립트 입력 경로) |
+| `harness persona import --detail <주제> <파일>` | 주입하지 않는 상세. 이름만 색인되고 `harness persona show <주제>` 로 읽음 |
+| `harness persona show [주제]` · `check` · `path` | 주입되는 내용 확인 · 형식·길이 점검 · 파일 경로 |
+| `harness persona disable` / `enable` | 주입 끄기·켜기 (효과 측정용) |
+
+- 형식은 `키: 값` 이고 기본 키는 `role`, `stack`, `work`, `goals`, `defaults`, `avoid` 입니다. 다른 키도 쓸 수 있습니다.
+- 수정 후 `harness install` 을 해야 지시 블록에 반영됩니다. 잊으면 `harness-stale` 훅이 다음 세션에 알려 줍니다.
+- `persona/core.md`·`persona/detail/` 은 개인 정보라 `.gitignore` 에 있습니다. 레포에는 템플릿만 커밋됩니다.
+- 에이전트에게 "내 정보 등록해줘"라고 하면 `persona` 스킬이 원자료를 결정 형태로 정리해 저장합니다.
+- 레포의 실제 코드가 페르소나와 어긋나면 에이전트는 레포를 믿고 사용자에게 알립니다. 낡은 페르소나는 없는 것보다 나쁩니다.
+- 효과가 의심되면 측정합니다: `persona disable` → `bench run --label persona-off`, `persona enable` → `--label persona-on`, `bench compare`. 작업 세트에는 페르소나가 없으면 되묻을 작업을 넣습니다.
+
 ## 토큰 사용량 측정과 비교
 
 | 명령 | 용도 |
@@ -133,6 +160,7 @@
 | `harness hook <enable\|disable> <이름>` | 훅 켜기·끄기 (적용은 `harness install`) |
 | `harness model [list\|get <작업>\|which "<요청>"\|set …]` | 작업 유형별 모델 조회·분류·변경 |
 | `harness run <작업\|auto> [--agent claude\|codex] [--print] -- "<프롬프트>"` | 작업에 맞는 모델로 에이전트 실행 (`--dry-run`: 명령만 출력) |
+| `harness persona [show\|init\|set\|import\|check\|enable\|disable\|path]` | 사용자 페르소나 조회·수정 (`persona import -` 로 표준입력) |
 | `harness usage [--since 7d] [--by session\|model\|day\|skill\|cwd] [--json]` | 세션 로그 기반 토큰 사용량 집계 |
 | `harness bench <init\|ab\|run [--baseline]\|compare\|list\|baseline>` | 작업 세트를 조건별로 실행·비교 (`harness bench --help`) |
 | `harness install [--dry-run] [--project <path>] [--agents claude,codex] [--force]` | 설치 (기본값: 글로벌) |

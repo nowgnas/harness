@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .onboarding/
 .design/
+persona/core.md
+persona/detail/*.md
+persona/.disabled

@@ -606,6 +606,19 @@ def cmd_doctor(_a):
     if not dups:
         ok(f"하네스 스킬과 같은 이름의 외부 스킬 없음 (외부 스킬 {len(ext)}개)")
 
+    print("[페르소나]")
+    P = __import__("persona")
+    if not P.CORE.is_file():
+        ok("페르소나 미설정 (선택. harness persona init)")
+    else:
+        issues = P.problems()
+        for line in issues:
+            warn(f"persona: {line}")
+        if not issues:
+            rows = sum(1 + max(0, len(v) - 1) for _, v in P.load())
+            state = "" if P.enabled() else " · 주입 꺼짐"
+            ok(f"persona core {rows}줄 (권장 {P.MAX_LINES}줄 이내) · 상세 {len(P.detail_topics())}개{state}")
+
     print("[설치 상태]")
     missing = [f"skill:{s['name']}" for s in skills if not all(skill_installed(s["name"]).values())]
     missing += [f"agent:{g['name']}" for g in agents if False in agent_installed(g).values()]
@@ -1220,6 +1233,10 @@ def usage_weights():
     return merged
 
 
+def cmd_persona_block(_a):
+    print(__import__("persona").render_block(), end="")
+
+
 def cmd_models_index(a):
     cfg = load_models(safe=True)
     if cfg and not models_problems():
@@ -1508,6 +1525,31 @@ def main():
     b.add_argument("--json", action="store_true")
     bsub.add_parser("list", help="저장된 조건 목록")
 
+    s = sub.add_parser("persona", help="사용자 페르소나 (지시 블록에 주입되는 사실)",
+                       epilog="예:\n  harness persona init            # 템플릿 생성 후 채우기\n"
+                              "  harness persona set stack 'Spring Boot 3.2; MySQL 8'\n"
+                              "  cat me.md | harness persona import -\n"
+                              "  harness persona import --detail db schema.md\n"
+                              "  harness persona check           # 형식·길이 점검",
+                       formatter_class=argparse.RawDescriptionHelpFormatter)
+    psub = s.add_subparsers(dest="action")
+    x = psub.add_parser("show", help="주입되는 내용 (주제를 주면 상세)")
+    x.add_argument("topic", nargs="?")
+    x = psub.add_parser("init", help="템플릿으로 core.md 만들기")
+    x.add_argument("--force", action="store_true")
+    x = psub.add_parser("set", help="항목 하나 수정·추가 (값에 ; 를 쓰면 목록)")
+    x.add_argument("key")
+    x.add_argument("value")
+    x = psub.add_parser("import", help="파일·표준입력으로 통째로 넣기 (스크립트 입력)")
+    x.add_argument("file", nargs="?", help="경로 또는 - (표준입력)")
+    x.add_argument("--detail", metavar="주제", help="core 대신 detail/<주제>.md 로 저장")
+    psub.add_parser("check", help="형식·길이 점검 (문제가 있으면 1로 종료)")
+    psub.add_parser("enable", help="주입 켜기")
+    psub.add_parser("disable", help="주입 끄기 (bench 비교용)")
+    psub.add_parser("path", help="파일 경로")
+
+    sub.add_parser("persona-block")
+
     a, extra = p.parse_known_args()
     extra = [x for x in extra if x != "--"]
     if a.cmd == "run":
@@ -1518,7 +1560,9 @@ def main():
      "adopt": cmd_adopt, "new": cmd_new, "hook": cmd_hook, "hooks-sync": cmd_hooks_sync,
      "model": cmd_model, "run": cmd_run, "models-sync": cmd_models_sync, "models-index": cmd_models_index,
      "usage": lambda args: U.cmd_usage(args, usage_weights()),
-     "bench": lambda args: __import__("bench").cmd_bench(args, sys.modules[__name__])}[a.cmd](a)
+     "bench": lambda args: __import__("bench").cmd_bench(args, sys.modules[__name__]),
+     "persona": lambda args: __import__("persona").cmd_persona(args, sys.modules[__name__]),
+     "persona-block": lambda args: cmd_persona_block(args)}[a.cmd](a)
 
 
 if __name__ == "__main__":

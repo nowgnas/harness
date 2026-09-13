@@ -164,6 +164,42 @@ allow_case "하네스 링크를 통한 수정" "{\"tool_name\":\"Edit\",\"tool_i
 allow_case "harness install" '{"tool_name":"Bash","tool_input":{"command":"harness install --dry-run"}}'
 allow_case "잘못된 JSON" 'not json'
 
+echo "▶ 페르소나"
+# 실제 core.md 를 건드리지 않도록 레포 복사본에서 검증한다
+PREPO="$TMP/persona-repo"; mkdir -p "$PREPO"
+cp -R "$HARNESS_DIR/lib" "$HARNESS_DIR/bin" "$HARNESS_DIR/rules" "$HARNESS_DIR/skills" "$HARNESS_DIR/agents" \
+      "$HARNESS_DIR/hooks" "$HARNESS_DIR/persona" "$HARNESS_DIR/models.json" "$HARNESS_DIR/install.sh" "$PREPO/"
+rm -f "$PREPO/persona/core.md" "$PREPO/persona/.disabled"; rm -f "$PREPO"/persona/detail/*.md
+PH="python3 $PREPO/lib/harness.py"
+check "미설정: init 안내" '$PH persona | grep -q "harness persona init"'
+check "미설정: 주입 블록 없음" '[ -z "$($PH persona-block)" ]'
+$PH persona init > /dev/null
+check "init: 템플릿 복사" '[ -f "$PREPO/persona/core.md" ]'
+check "자리표시자만 있으면 주입하지 않음" '[ -z "$($PH persona-block)" ]'
+check "check: 자리표시자를 문제로 보고 1로 종료" '! $PH persona check > "$TMP/pcheck.txt" 2>&1; grep -q "자리표시자" "$TMP/pcheck.txt"'
+$PH persona set role "백엔드. 결제 서비스 담당" > /dev/null
+$PH persona set defaults "새 의존성은 먼저 묻는다; 스키마 변경은 마이그레이션 파일로만" > /dev/null
+check "set: 값 저장 (; 는 목록으로)" 'grep -q "^role: 백엔드" "$PREPO/persona/core.md" && grep -q "^  - 새 의존성은 먼저 묻는다" "$PREPO/persona/core.md"'
+check "set: 같은 키 재지정은 교체 (중복 없음)" '$PH persona set role "백엔드. 정산 담당" > /dev/null; [ "$(grep -c "^role:" "$PREPO/persona/core.md")" = 1 ]'
+check "주입 블록: 채운 항목만 한국어 라벨로" '$PH persona-block | grep -q "^- 역할: 백엔드. 정산 담당" && $PH persona-block | grep -q "^- 기본값: 새 의존성은 먼저 묻는다; 스키마"'
+check "주입 블록: 자리표시자 항목은 제외" '! $PH persona-block | grep -q "<"'
+printf 'role: 표준입력에서 온 역할\n' | $PH persona import - > /dev/null
+check "import -: 표준입력으로 통째 교체" 'grep -q "표준입력에서 온 역할" "$PREPO/persona/core.md" && ! grep -q "정산 담당" "$PREPO/persona/core.md"'
+check "import: 형식이 아니면 거부" '! printf "그냥 줄글입니다\n" | $PH persona import - 2>/dev/null'
+printf '# DB\nPostgres 15, 스키마 2개\n' | $PH persona import --detail db - > /dev/null
+check "import --detail: 상세 저장 + 색인만 주입" '[ -f "$PREPO/persona/detail/db.md" ] && $PH persona-block | grep -q "필요할 때 읽는 상세.*: db" && ! $PH persona-block | grep -q "Postgres 15"'
+check "show <주제>: 상세 본문 출력" '$PH persona show db | grep -q "Postgres 15"'
+check "show: 없는 주제는 거부" '! $PH persona show nope 2>/dev/null'
+check "disable: 주입 끔 (bench 비교용)" '$PH persona disable > /dev/null; [ -z "$($PH persona-block)" ]'
+check "enable: 주입 다시 켬" '$PH persona enable > /dev/null; [ -n "$($PH persona-block)" ]'
+check "core 가 길면 경고" 'for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do echo "k$i: v"; done | $PH persona import - | grep -q "권장 15줄"'
+printf 'role: 결제 백엔드\n' | $PH persona import - > /dev/null
+PHOME="$TMP/phome"; mkdir -p "$PHOME"
+HOME="$PHOME" CODEX_HOME="$PHOME/.codex" "$PREPO/install.sh" --global --agents claude,codex > /dev/null 2>&1
+check "설치: 지시 블록 맨 앞에 주입 (claude·codex)" 'head -5 "$PHOME/.claude/CLAUDE.md" | grep -q "결제 백엔드" && head -5 "$PHOME/.codex/AGENTS.md" | grep -q "결제 백엔드"'
+check "설치: 페르소나가 룰 앞에 온다" '[ "$(grep -n "결제 백엔드" "$PHOME/.claude/CLAUDE.md" | cut -d: -f1)" -lt "$(grep -n "rules/10-core.md" "$PHOME/.claude/CLAUDE.md" | cut -d: -f1)" ]'
+check "설치 후 status 전부 OK" 'HOME="$PHOME" CODEX_HOME="$PHOME/.codex" "$PREPO/install.sh" --status --global --agents claude,codex 2>&1 | grep -vq "^  STALE"'
+
 echo "▶ stale 감지 훅"
 STALE_HOOK="$HARNESS_DIR/hooks/harness-stale/stale.py"
 stale_out() { printf '%s' "${1-\{\}}" | python3 "$STALE_HOOK"; }

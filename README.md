@@ -23,6 +23,7 @@ harness help                      # 사용법
 | 룰 (always) | `rules/*.md` | `~/.claude/CLAUDE.md` 블록에 `@import` | `~/.codex/AGENTS.md` 블록에 본문 |
 | 룰 (on-demand) | `rules/*.md` | 블록에 이름·시점 한 줄 | 동일 |
 | 훅 | `hooks/<name>/hook.json` + 스크립트 | `~/.claude/settings.json`의 `hooks` | `~/.codex/hooks.json` |
+| 페르소나 | `persona/core.md` (gitignore) | 지시 블록 맨 앞에 주입 | 동일 |
 | CLI | `bin/harness` | `~/.local/bin/harness` 링크 | 동일 |
 | 플러그인·MCP | — | 조회만 (`harness list plugins`, `harness list mcp`) | 조회만 |
 
