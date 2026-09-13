@@ -269,6 +269,7 @@ check "usage --by skill (텍스트)" '"$HB" usage --since 2000-01-01 --by skill 
 check "usage --cwd 필터" '[ "$("$HB" usage --since 2000-01-01 --cwd "$TMP/uproj" --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 3 ] && [ "$("$HB" usage --since 2000-01-01 --cwd /nonexistent --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 0 ]'
 
 echo "▶ 벤치 (harness bench)"
+"$INSTALL" --global --agents claude,codex > /dev/null   # baseline 비교를 위해 하네스를 다시 적용
 BR="$TMP/brepo"; mkdir -p "$BR"; (cd "$BR" && git init -q && echo a > a.txt && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
 cat > "$TMP/tasks.json" <<EOF
 {"repo": "$BR", "ref": "HEAD", "tasks": [
@@ -277,8 +278,9 @@ cat > "$TMP/tasks.json" <<EOF
 EOF
 cat > "$TMP/fakeclaude" <<'EOF'
 #!/usr/bin/env bash
-prompt=""; while [ $# -gt 0 ]; do [ "$1" = -p ] && { prompt="$2"; shift; }; shift; done
+prompt=""; while [ $# -gt 0 ]; do case "$1" in -p|--print) prompt="$2"; shift ;; esac; shift; done
 echo "HEADROOM WRAP banner"
+echo "$HOME" >> "${SEEN_FILE:-/dev/null}"
 case "$prompt" in *out.txt*) echo x > out.txt ;; esac
 sid="fake-$$-$RANDOM"; d="$HOME/.claude/projects/-bench"; mkdir -p "$d"
 printf '{"type":"assistant","timestamp":"2026-09-12T00:00:00Z","cwd":"%s","sessionId":"%s","message":{"id":"b1","model":"claude-sonnet-5","content":[],"usage":{"input_tokens":7,"cache_creation_input_tokens":0,"cache_read_input_tokens":300,"output_tokens":11}}}\n' "$PWD" "$sid" > "$d/$sid.jsonl"
@@ -300,7 +302,7 @@ check "bench run: check 성공/실패·로그 기반 토큰·모델 기록" 'pyt
 import json; rows=[json.loads(l) for l in open(\"$TMP/bench/results/base.jsonl\")]
 r={x[\"task\"]:x for x in rows}; assert r[\"t1\"][\"check_ok\"] is True and r[\"t2\"][\"check_ok\"] is False
 assert r[\"t1\"][\"tokens\"][\"source\"]==\"log\" and r[\"t1\"][\"tokens\"][\"cache_read\"]==300 and r[\"t1\"][\"turns\"]==2
-assert r[\"t1\"][\"model\"]==\"sonnet\" and r[\"t2\"][\"model\"]==\"opus\" and r[\"t1\"][\"harness\"]==dict(claude=False, codex=False)"'
+assert r[\"t1\"][\"model\"]==\"sonnet\" and r[\"t2\"][\"model\"]==\"opus\" and r[\"t1\"][\"mode\"]==\"current\" and r[\"t1\"][\"harness\"]==dict(claude=True, codex=True)"'
 check "bench run: repeat 반영" '[ "$(wc -l < "$TMP/bench/results/exp.jsonl" | tr -d " ")" = 4 ]'
 check "bench run: worktree 정리" '[ "$(git -C "$BR" worktree list | wc -l | tr -d " ")" = 1 ]'
 "$HB" bench compare base exp > "$TMP/bench-cmp.txt"
@@ -312,7 +314,27 @@ import json; r=json.loads(open(\"$TMP/bench/results/cx.jsonl\").readline())
 t=r[\"tokens\"]; assert (t[\"input\"],t[\"cache_read\"],t[\"output\"],t[\"source\"])==(40,60,7,\"stdout\")
 assert r[\"model\"]==\"gpt-5.6-sol\" and r[\"effort\"]==\"medium\" and r[\"check_ok\"] is True"'
 check "bench: 잘못된 label 거부" '! "$HB" bench run "$TMP/tasks.json" --label "../x" --dry-run >/dev/null 2>&1'
-unset HARNESS_CLAUDE_BIN HARNESS_CODEX_BIN HARNESS_BENCH_DIR
+"$HB" bench baseline > "$TMP/bl.txt"
+BH="$TMP/bench/baseline-home"
+check "baseline 미러: 하네스 스킬·서브에이전트 제외, 외부 것은 유지" '[ ! -e "$BH/.claude/skills/bug-fix" ] && [ -e "$BH/.claude/skills/my-ext" ] && [ ! -e "$BH/.agents/skills/bug-fix" ] && [ ! -e "$BH/.claude/agents/git-ops.md" ] && [ -f "$BH/.claude/agents/my-agent.md" ]'
+check "baseline 미러: 룰 블록·하네스 훅·Codex 역할 블록 제외, 나머지 설정 유지" '! contains "$BH/.claude/CLAUDE.md" "harness:start" && contains "$BH/.claude/CLAUDE.md" "@RTK.md" && ! contains "$BH/.claude/settings.json" "--harness-hook" && contains "$BH/.claude/settings.json" "PermissionRequest" && ! contains "$BH/.codex/config.toml" "[agents.git-ops]" && contains "$BH/.codex/config.toml" "[mcp_servers.cx]" && ! contains "$BH/.codex/AGENTS.md" "harness:start" && contains "$BH/.codex/AGENTS.md" "# existing codex rules" && ! contains "$BH/.codex/hooks.json" "--harness-hook" && contains "$BH/.codex/hooks.json" "echo hi" && [ ! -e "$BH/.codex/harness" ]'
+check "baseline 미러: 세션 로그·기타 항목은 원본 링크" '[ -L "$BH/.claude/projects" ] && [ -L "$BH/.claude.json" ] && [ -L "$BH/.codex/sessions" ] && [ -L "$BH/.local" ]'
+check "baseline 미러: 실제 전역 설정은 그대로" 'contains "$HOME/.claude/CLAUDE.md" "harness:start" && [ -L "$HOME/.claude/skills/bug-fix" ] && contains "$CODEX_HOME/config.toml" "[agents.git-ops]"'
+check "baseline 보고: 제외 항목 출력" 'contains "$TMP/bl.txt" "하네스 룰 블록 제외" && contains "$TMP/bl.txt" "하네스 훅"'
+export SEEN_FILE="$TMP/seen-home.txt"
+"$HB" bench run "$TMP/tasks.json" --label bl --baseline --only t1 > "$TMP/bench3.txt" 2>&1
+check "run --baseline: 미러 HOME 으로 실행, 상태·로그 토큰 기록" '[ "$(tail -1 "$SEEN_FILE")" = "$BH" ] && python3 -c "
+import json; r=json.loads(open(\"$TMP/bench/results/bl.jsonl\").readline())
+assert r[\"mode\"]==\"baseline\" and r[\"harness\"]==dict(claude=False, codex=False) and r[\"tokens\"][\"source\"]==\"log\" and r[\"check_ok\"] is True, r"'
+"$HB" bench ab "$TMP/tasks.json" --repeat 1 --prefix t > "$TMP/ab.txt" 2>&1
+check "ab: baseline → harness 연속 실행 후 비교" '[ -f "$TMP/bench/results/t-baseline.jsonl" ] && [ -f "$TMP/bench/results/t-harness.jsonl" ] && grep -q "^t1 " "$TMP/ab.txt" && contains "$TMP/ab.txt" "claude=off" && contains "$TMP/ab.txt" "claude=on" && ! contains "$TMP/ab.txt" "적용 상태가 같습니다"'
+check "ab --dry-run: 실행 계획만" '"$HB" bench ab "$TMP/tasks.json" --repeat 2 --prefix d --dry-run | grep -q "HOME=$BH" && [ ! -f "$TMP/bench/results/d-baseline.jsonl" ]'
+"$HB" bench init > /dev/null
+check "init 기본 위치 (~/.harness-bench/tasks.json)" '[ -f "$TMP/bench/tasks.json" ]'
+check "--agent-cmd: 래퍼 명령 앞에 붙이고 --print 사용" '"$HB" bench run "$TMP/tasks.json" --label w --only t1 --dry-run --agent-cmd "headroom wrap claude --" | grep -q "headroom wrap claude -- --print"'
+check "HARNESS_CLAUDE_CMD 환경변수" 'HARNESS_CLAUDE_CMD="mywrap claude --" "$HB" run git --agent claude --print --dry-run -- x 2>/dev/null | grep -q "^mywrap claude -- --model sonnet --print"'
+check "bench --help 예시 포함" '"$HB" bench --help | grep -q "harness bench ab --repeat 2"'
+unset HARNESS_CLAUDE_BIN HARNESS_CODEX_BIN HARNESS_BENCH_DIR SEEN_FILE
 
 echo "▶ repo-scan: Spring 픽스처"
 S="$TMP/spring"; mkdir -p "$S/src/main/java/com/acme/order" "$S/src/main/resources/db/migration" "$S/src/test/java/com/acme"

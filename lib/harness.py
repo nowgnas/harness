@@ -906,6 +906,15 @@ def model_label(model, effort):
     return f"{model}/{effort}" if effort else (model or "-")
 
 
+def agent_cmd(agent, override=None):
+    """에이전트 실행 명령. override > HARNESS_<AGENT>_CMD (예: 'headroom wrap claude --') > HARNESS_<AGENT>_BIN > 이름.
+    subprocess 로 실행하므로 셸 함수·별칭은 적용되지 않는다."""
+    spec = override or os.environ.get(f"HARNESS_{agent.upper()}_CMD")
+    if spec:
+        return shlex.split(spec)
+    return [os.environ.get(f"HARNESS_{agent.upper()}_BIN") or agent]
+
+
 def model_flags(agent, model, effort):
     if agent == "claude":
         return ["--model", model]
@@ -1175,9 +1184,9 @@ def cmd_run(a):
     if not model:
         fail(f"{agent}/{task} 모델이 models.json 에 없습니다.")
     if agent == "claude":
-        cmd = ["claude", *model_flags(agent, model, effort), *(["-p"] if a.print else [])]
+        cmd = [*agent_cmd(agent), *model_flags(agent, model, effort), *(["--print"] if a.print else [])]
     else:
-        cmd = ["codex", *(["exec"] if a.print else []), *model_flags(agent, model, effort)]
+        cmd = [*agent_cmd(agent), *(["exec"] if a.print else []), *model_flags(agent, model, effort)]
     if prompt:
         cmd.append(prompt)
     elif a.print:
@@ -1441,31 +1450,48 @@ def main():
     s.add_argument("--limit", type=int, default=20)
     s.add_argument("--json", action="store_true")
 
-    s = sub.add_parser("bench", help="작업 세트를 조건별로 실행·비교")
+    s = sub.add_parser(
+        "bench", help="작업 세트를 조건별로 실행·비교", formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="같은 작업 세트를 하네스 미적용(baseline)과 적용 조건으로 실행해 토큰·check 통과율·턴·시간을 비교한다.\n"
+                    "baseline 은 전역 설정을 건드리지 않고 하네스만 뺀 HOME 미러로 실행한다.",
+        epilog="예:\n  harness bench init                 # ~/.harness-bench/tasks.json 생성 후 repo·tasks 편집\n"
+               "  harness bench ab --repeat 2 --dry-run\n  harness bench ab --repeat 2        # baseline → harness → 비교표\n"
+               "  harness bench baseline             # baseline 에서 빠지는 항목 확인")
     bsub = s.add_subparsers(dest="action", required=True)
-    b = bsub.add_parser("init")
-    b.add_argument("path", nargs="?", default="bench-tasks.json")
-    b = bsub.add_parser("run")
-    b.add_argument("tasks")
+    b = bsub.add_parser("init", help="작업 파일 예시 생성")
+    b.add_argument("path", nargs="?", help="기본: ~/.harness-bench/tasks.json")
+    bsub.add_parser("baseline", help="하네스만 뺀 HOME 미러를 만들고 제외 항목 출력")
+
+    def bench_run_options(b):
+        b.add_argument("tasks", nargs="?", help="작업 파일 (기본: ~/.harness-bench/tasks.json)")
+        b.add_argument("--agent", choices=AGENTS_SUPPORTED, help="기본: 작업 파일의 agent, 없으면 claude")
+        b.add_argument("--repeat", type=int, default=1, help="작업별 반복 횟수")
+        b.add_argument("--only", help="작업 id 쉼표 목록")
+        b.add_argument("--keep", action="store_true", help="worktree 남기기")
+        b.add_argument("--dry-run", action="store_true", help="실행할 명령만 출력")
+        b.add_argument("--model", help="작업 유형 대신 고정 모델")
+        b.add_argument("--effort", choices=EFFORTS)
+        b.add_argument("--permission-mode", default="acceptEdits", help="Claude 권한 모드")
+        b.add_argument("--sandbox", default="workspace-write", help="Codex 샌드박스")
+        b.add_argument("--max-turns", type=int)
+        b.add_argument("--timeout", type=int, default=1800, help="작업당 에이전트 실행 제한(초)")
+        b.add_argument("--check-timeout", type=int, default=900)
+        b.add_argument("--agent-args", help="에이전트 CLI 에 넘길 추가 인자 (예: --agent-args='--allowedTools Bash')")
+        b.add_argument("--agent-cmd", help="에이전트 실행 명령 (예: --agent-cmd='headroom wrap claude --'). "
+                                           "기본: HARNESS_CLAUDE_CMD/HARNESS_CODEX_CMD 또는 PATH 의 claude/codex")
+
+    b = bsub.add_parser("run", help="한 조건 실행")
+    bench_run_options(b)
     b.add_argument("--label", required=True, help="조건 이름 (예: baseline, harness)")
-    b.add_argument("--agent", choices=AGENTS_SUPPORTED)
-    b.add_argument("--repeat", type=int, default=1)
-    b.add_argument("--only", help="작업 id 쉼표 목록")
-    b.add_argument("--keep", action="store_true", help="worktree 남기기")
-    b.add_argument("--dry-run", action="store_true")
-    b.add_argument("--model", help="작업 유형 대신 고정 모델")
-    b.add_argument("--effort", choices=EFFORTS)
-    b.add_argument("--permission-mode", default="acceptEdits", help="Claude 권한 모드")
-    b.add_argument("--sandbox", default="workspace-write", help="Codex 샌드박스")
-    b.add_argument("--max-turns", type=int)
-    b.add_argument("--timeout", type=int, default=1800)
-    b.add_argument("--check-timeout", type=int, default=900)
-    b.add_argument("--agent-args", help="에이전트 CLI 에 넘길 추가 인자 (예: --agent-args='--allowedTools Bash')")
-    b = bsub.add_parser("compare")
+    b.add_argument("--baseline", action="store_true", help="하네스만 뺀 HOME 미러로 실행 (전역 설정은 그대로)")
+    b = bsub.add_parser("ab", help="baseline(하네스 제외)과 harness(현재 설정)를 연달아 실행하고 비교")
+    bench_run_options(b)
+    b.add_argument("--prefix", help="결과 label 접두어 (기본: ab-<날짜시각>)")
+    b = bsub.add_parser("compare", help="두 조건 비교")
     b.add_argument("a")
     b.add_argument("b")
     b.add_argument("--json", action="store_true")
-    bsub.add_parser("list")
+    bsub.add_parser("list", help="저장된 조건 목록")
 
     a, extra = p.parse_known_args()
     extra = [x for x in extra if x != "--"]

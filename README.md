@@ -71,10 +71,9 @@ harness install --dry-run && harness install                              # 적�
 
 ```bash
 harness usage --since 7d --by skill                   # 스킬별 토큰 사용량 (Claude·Codex 세션 로그)
-harness bench init                                    # 작업 세트 예시 생성
-harness bench run bench-tasks.json --label baseline   # 하네스 제거 상태에서
-harness bench run bench-tasks.json --label harness    # 하네스 설치 상태에서
-harness bench compare baseline harness                # 작업별 토큰·통과율·턴·시간 비교
+harness bench init                                    # ~/.harness-bench/tasks.json 생성 → repo·작업 편집
+harness bench ab --repeat 2                           # baseline(하네스만 뺀 HOME 미러) → 현재 설정 → 비교표
+harness bench baseline                                # baseline 에서 빠지는 항목 확인
 ```
 
 ## 구조

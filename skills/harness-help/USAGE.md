@@ -85,11 +85,17 @@
 | 명령 | 용도 |
 |---|---|
 | `harness usage [--since 7d] [--agent claude\|codex] [--here] [--by session\|model\|day\|skill\|cwd]` | 두 에이전트의 세션 로그에서 토큰(입력·캐시 쓰기·캐시 읽기·출력)과 가중 환산값을 집계 |
-| `harness bench init` → `harness bench run <tasks.json> --label <조건>` → `harness bench compare <A> <B>` | 같은 작업 세트를 조건별로 실행해 토큰·check 통과율·턴·시간 비교 |
+| `harness bench init` → `harness bench ab --repeat 2` | 같은 작업 세트를 baseline(하네스 제외)과 현재 설정으로 연달아 실행하고 토큰·check 통과율·턴·시간 비교표 출력 |
+| `harness bench run [--baseline] --label <조건>` · `harness bench compare <A> <B>` | 조건 하나씩 실행하고 원하는 두 조건 비교 |
 
 - weighted는 입력 토큰 기준 가중합입니다(캐시 읽기 0.1배, 출력 5~8배). 달러가 아닌 상대 비교용이며 `models.json`의 `usage_weights`에서 조정합니다.
 - 벤치는 작업마다 git worktree를 만들어 비대화 모드(`claude -p`, `codex exec`)로 실행하고 끝나면 정리합니다(`--keep`으로 보존).
-- 하네스 효과 비교: `harness uninstall` → `bench run --label baseline` → `harness install` → `bench run --label harness` → `bench compare baseline harness`. 실행 시점의 하네스 적용 여부가 결과에 함께 기록됩니다.
+- 작업 파일 기본 위치는 `~/.harness-bench/tasks.json`입니다(`harness bench init`으로 생성).
+- baseline은 전역 설정을 건드리지 않고 `~/.harness-bench/baseline-home`의 HOME 미러로 실행합니다. 하네스 스킬·서브에이전트, 지시 파일의 harness 블록, 하네스 훅, Codex 역할 블록만 빠지고 인증·프록시 설정·캐시·세션 로그 폴더는 원본 링크입니다. 빠지는 항목은 `harness bench baseline`으로 확인합니다.
+- 에이전트에게 "하네스 벤치 돌려줘, repeat 2"라고 하면 `harness-manage` 절차로 작업 파일을 확인하고 `harness bench ab --repeat 2`를 실행합니다. 오래 걸리므로 Claude는 백그라운드로 실행하고, Codex는 샌드박스 밖 작업이라 명령을 안내합니다.
+- 에이전트는 PATH의 `claude`/`codex` 바이너리로 실행됩니다(셸 함수·별칭은 적용되지 않음). headroom 같은 래퍼를 거치려면 `--agent-cmd 'headroom wrap claude --'` 또는 환경변수 `HARNESS_CLAUDE_CMD`를 씁니다. `harness run`도 같은 환경변수를 따릅니다.
+- 비대화 실행에는 CLI 로그인이 필요합니다. `401 authentication_error`가 나면 터미널에서 `claude`(또는 `codex`)를 실행해 로그인한 뒤 다시 시도합니다.
+- 모든 옵션: `harness bench --help`, `harness bench ab --help`
 - 비대화 모드에서는 설계 게이트에서 멈추므로 벤치 프롬프트에 "설계는 승인된 것으로 보고 진행"처럼 적습니다(`bench/tasks.example.json` 참고).
 - Claude는 기본 `--permission-mode acceptEdits`라 셸 명령이 막힐 수 있습니다. 테스트 실행이 필요하면 `--agent-args='--allowedTools Bash'`처럼 넘깁니다.
 
@@ -122,7 +128,7 @@
 | `harness model [list\|get <작업>\|which "<요청>"\|set …]` | 작업 유형별 모델 조회·분류·변경 |
 | `harness run <작업\|auto> [--agent claude\|codex] [--print] -- "<프롬프트>"` | 작업에 맞는 모델로 에이전트 실행 (`--dry-run`: 명령만 출력) |
 | `harness usage [--since 7d] [--by session\|model\|day\|skill\|cwd] [--json]` | 세션 로그 기반 토큰 사용량 집계 |
-| `harness bench <init\|run\|compare\|list>` | 작업 세트를 조건별로 실행·비교 |
+| `harness bench <init\|ab\|run [--baseline]\|compare\|list\|baseline>` | 작업 세트를 조건별로 실행·비교 (`harness bench --help`) |
 | `harness install [--dry-run] [--project <path>] [--agents claude,codex] [--force]` | 설치 (기본값: 글로벌) |
 | `harness status` / `harness update` / `harness uninstall` | 상태 / git pull 후 재설치 / 제거 |
 | `harness help [스킬]` · `harness scan [경로]` · `harness test` · `harness version` | 사용법 · 레포 스캔 · 스모크 테스트 · 버전 |
