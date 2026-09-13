@@ -18,7 +18,7 @@ usage() {
   측정   usage [--since 7d] [--by session|model|day|skill|cwd]  bench <init|run|compare|list>
   페르소나 persona [show|init|set|import|check|enable|disable]
   관리   add skill <경로|URL>  new <skill|rule|hook> <이름>  adopt skill <이름>  hook <enable|disable> <이름>
-  설치   install [옵션]  status  update  uninstall [옵션]
+  설치   install [옵션]  reinstall [옵션]  status  update  uninstall [옵션]
   기타   help [스킬]  scan [경로]  test  version
 자세한 내용: knack help
 EOF
@@ -40,6 +40,7 @@ case "$cmd" in
              exec python3 "$PY" "$cmd" "$@" ;;
   status)    exec "$KNACK_DIR/install.sh" --status "$@" ;;
   install)   exec "$KNACK_DIR/install.sh" "$@" ;;
+  reinstall) exec "$KNACK_DIR/install.sh" --reinstall "$@" ;;
   update)    git -C "$KNACK_DIR" pull --ff-only && exec "$KNACK_DIR/install.sh" --global "$@" ;;
   uninstall) exec "$KNACK_DIR/install.sh" --uninstall "$@" ;;
   scan)      exec bash "$KNACK_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "${1:-.}" ;;

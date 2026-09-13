@@ -19,6 +19,8 @@ OLD_MD_END="<!-- harness:end -->"
 GIT_END="# knack:end"
 
 ACTION=install
+REINSTALL=0
+PASS_ARGS=()
 MODE=global
 PROJECT=""
 AGENTS=""
@@ -37,6 +39,7 @@ usage() {
   --agents <list>       대상 에이전트 (쉼표 구분: ${SUPPORTED// /,}). 생략 시 설치된 것 자동 감지
   --status              설치 상태 확인
   --uninstall           제거 (하네스가 만든 링크·블록·훅만 제거)
+  --reinstall           제거 후 다시 설치 (설치 상태가 꼬였거나 다른 클론으로 옮길 때)
   --dry-run             변경하지 않고 무엇이 바뀔지만 출력
   --force               기존 파일과 충돌 시 백업(~/.knack-backups) 후 교체
   -h, --help            도움말
@@ -45,18 +48,32 @@ EOF
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --global) MODE=global ;;
-    --project) MODE=project; PROJECT="${2:?--project 뒤에 경로가 필요합니다}"; shift ;;
-    --agents) AGENTS="$(echo "${2:?--agents 뒤에 목록이 필요합니다}" | tr ',' ' ')"; shift ;;
+    --global) MODE=global; PASS_ARGS=(${PASS_ARGS[@]+"${PASS_ARGS[@]}"} "$1") ;;
+    --project) MODE=project; PROJECT="${2:?--project 뒤에 경로가 필요합니다}"
+               PASS_ARGS=(${PASS_ARGS[@]+"${PASS_ARGS[@]}"} "$1" "$2"); shift ;;
+    --agents) AGENTS="$(echo "${2:?--agents 뒤에 목록이 필요합니다}" | tr ',' ' ')"
+              PASS_ARGS=(${PASS_ARGS[@]+"${PASS_ARGS[@]}"} "$1" "$2"); shift ;;
     --status) ACTION=status ;;
     --uninstall) ACTION=uninstall ;;
-    --dry-run) DRY=1 ;;
-    --force) FORCE=1 ;;
+    --reinstall) REINSTALL=1 ;;
+    --dry-run) DRY=1; PASS_ARGS=(${PASS_ARGS[@]+"${PASS_ARGS[@]}"} "$1") ;;
+    --force) FORCE=1; PASS_ARGS=(${PASS_ARGS[@]+"${PASS_ARGS[@]}"} "$1") ;;
     -h|--help) usage; exit 0 ;;
     *) echo "알 수 없는 옵션: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
+
+# 재설치: 제거 한 번, 설치 한 번. 각 단계가 그대로 출력되어 무엇이 바뀌는지 보인다
+if [ $REINSTALL -eq 1 ]; then
+  [ "$ACTION" = install ] || { echo "--reinstall 은 --status·--uninstall 과 함께 쓸 수 없습니다" >&2; exit 2; }
+  echo "재설치 1/2 — 제거"
+  "$0" --uninstall ${PASS_ARGS[@]+"${PASS_ARGS[@]}"}
+  echo
+  [ $DRY -eq 1 ] && echo "(dry-run 이라 제거가 실제로 일어나지 않아, 아래 설치 단계는 지금 설치된 상태를 기준으로 계산됩니다)"
+  echo "재설치 2/2 — 설치"
+  exec "$0" ${PASS_ARGS[@]+"${PASS_ARGS[@]}"}
+fi
 
 if [ "$MODE" = project ]; then
   PROJECT="$(cd "$PROJECT" 2>/dev/null && pwd)" || { echo "프로젝트 경로가 없습니다" >&2; exit 1; }
@@ -100,23 +117,23 @@ handle_link() {  # src dst
   case "$ACTION" in
     status)
       if [ "$cur" = "$src" ]; then say OK "$(pretty "$dst")"
+      elif [ -n "$cur" ] && knack_link "$cur"; then say STALE "$(pretty "$dst") (다른 knack 클론을 가리킴 → install 시 교체)"
       elif [ -e "$dst" ] || [ -L "$dst" ]; then say CONFLICT "$(pretty "$dst") (하네스가 아닌 파일)"
       else say MISSING "$(pretty "$dst")"; fi ;;
     uninstall)
-      case "$cur" in
-        "$KNACK_DIR"/*) N_CHANGE=$((N_CHANGE + 1)); say REMOVE "$(pretty "$dst")"; [ $DRY -eq 1 ] || rm "$dst" ;;
-      esac ;;
+      if [ -n "$cur" ] && knack_link "$cur"; then
+        N_CHANGE=$((N_CHANGE + 1)); say REMOVE "$(pretty "$dst")"; [ $DRY -eq 1 ] || rm "$dst"
+      fi ;;
     install)
       if [ "$cur" = "$src" ]; then say OK "$(pretty "$dst")"; return; fi
       if [ -e "$dst" ] || [ -L "$dst" ]; then
-        case "$cur" in
-          "$KNACK_DIR"/*) ;;  # 하네스의 옛 링크 → 교체
-          *)
-            if [ $FORCE -eq 0 ]; then
-              N_SKIP=$((N_SKIP + 1)); say SKIP "$(pretty "$dst") (기존 항목 존재. --force 로 백업 후 교체)"; return
-            fi
-            say BACKUP "$(pretty "$dst")"; [ $DRY -eq 1 ] || backup "$dst" move ;;
-        esac
+        if [ -n "$cur" ] && knack_link "$cur"; then
+          :  # 하네스(이 폴더 또는 다른 클론)의 링크 → 백업 없이 교체
+        elif [ $FORCE -eq 0 ]; then
+          N_SKIP=$((N_SKIP + 1)); say SKIP "$(pretty "$dst") (기존 항목 존재. --force 로 백업 후 교체)"; return
+        else
+          say BACKUP "$(pretty "$dst")"; [ $DRY -eq 1 ] || backup "$dst" move
+        fi
         [ $DRY -eq 1 ] || rm -f "$dst"
       fi
       N_CHANGE=$((N_CHANGE + 1)); say LINK "$(pretty "$dst") -> $(pretty "$src")"
@@ -124,6 +141,18 @@ handle_link() {  # src dst
       mkdir -p "$(dirname "$dst")"
       ln -s "$src" "$dst" ;;
   esac
+}
+
+# 링크가 knack 레포를 가리키는지 — 이 폴더뿐 아니라 다른 클론도 포함한다.
+# 하네스를 수정하는 폴더와 사용자로 쓰는 클론이 따로 있을 때 서로 넘겨받을 수 있어야 한다.
+knack_link() {  # 링크 대상 경로
+  local root="$1"
+  case "$root" in "$KNACK_DIR"/*) return 0 ;; esac
+  while [ -n "$root" ] && [ "$root" != "/" ] && [ "$root" != "." ]; do
+    root="$(dirname "$root")"
+    [ -f "$root/bin/knack" ] && [ -f "$root/lib/knack.py" ] && [ -f "$root/install.sh" ] && return 0
+  done
+  return 1
 }
 
 # 하네스를 가리키지만 대상이 사라진 링크 정리 (스킬 삭제·이름 변경 후)

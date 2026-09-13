@@ -164,6 +164,36 @@ allow_case "하네스 링크를 통한 수정" "{\"tool_name\":\"Edit\",\"tool_i
 allow_case "knack install" '{"tool_name":"Bash","tool_input":{"command":"knack install --dry-run"}}'
 allow_case "잘못된 JSON" 'not json'
 
+echo "▶ 재설치·다중 클론"
+# 사용자용 클론(레포를 수정하는 폴더와 별도)에서 설치·재설치가 되는지
+UCLONE="$TMP/userclone"; mkdir -p "$UCLONE"
+cp -R "$KNACK_DIR/bin" "$KNACK_DIR/lib" "$KNACK_DIR/rules" "$KNACK_DIR/skills" "$KNACK_DIR/agents" \
+      "$KNACK_DIR/hooks" "$KNACK_DIR/persona" "$KNACK_DIR/models.json" "$KNACK_DIR/install.sh" "$UCLONE/"
+rm -f "$UCLONE/persona/core.md" "$UCLONE/persona/.disabled"; rm -f "$UCLONE"/persona/detail/*.md
+RHOME="$TMP/rhome"; mkdir -p "$RHOME"
+ri() { HOME="$RHOME" CODEX_HOME="$RHOME/.codex" "$@"; }
+ri "$INSTALL" --global --agents claude,codex > /dev/null 2>&1          # 수정용 폴더에서 먼저 설치
+check "다른 클론 링크를 status 가 STALE 로 보고" 'ri "$UCLONE/install.sh" --status --global --agents claude | grep -q "다른 knack 클론을 가리킴"'
+ri "$UCLONE/install.sh" --global --agents claude,codex > "$TMP/uclone.txt" 2>&1
+check "다른 클론에서 install: SKIP 없이 넘겨받음" '! grep -q "SKIP" "$TMP/uclone.txt" && [ "$(readlink "$RHOME/.claude/skills/bug-fix")" = "$UCLONE/skills/bug-fix" ]'
+check "CLI 링크도 넘겨받음" '[ "$(readlink "$RHOME/.local/bin/knack")" = "$UCLONE/bin/knack" ]'
+# 넘겨받을 때 설정 파일은 백업되지만(설계), 링크는 백업으로 밀려나지 않는다
+check "넘겨받을 때 링크는 백업에 쌓이지 않음" '! find "$RHOME/.knack-backups" -path "*/skills/*" -o -path "*/bin/knack" | grep -q .'
+# 사용자가 직접 만든 항목은 여전히 보호된다
+mkdir -p "$RHOME/.claude/skills/내스킬"; echo mine > "$RHOME/.claude/skills/내스킬/SKILL.md"
+rm "$RHOME/.claude/skills/trace-flow"; mkdir -p "$RHOME/.claude/skills/trace-flow"; echo mine > "$RHOME/.claude/skills/trace-flow/SKILL.md"
+ri "$UCLONE/install.sh" --global --agents claude > "$TMP/uclone2.txt" 2>&1
+check "하네스가 아닌 항목은 여전히 SKIP" 'grep -q "SKIP .*trace-flow" "$TMP/uclone2.txt" && grep -q mine "$RHOME/.claude/skills/trace-flow/SKILL.md"'
+rm -rf "$RHOME/.claude/skills/trace-flow"
+ri "$UCLONE/install.sh" --reinstall --global --agents claude,codex > "$TMP/reinstall.txt" 2>&1
+check "reinstall: 제거 → 설치 두 단계 실행" 'grep -q "재설치 1/2 — 제거" "$TMP/reinstall.txt" && grep -q "재설치 2/2 — 설치" "$TMP/reinstall.txt"'
+check "reinstall 후 doctor 설치 상태 깨끗" 'ri python3 "$UCLONE/lib/knack.py" doctor 2>&1 | grep -q "모든 항목 설치됨"'
+check "reinstall 이 사용자 항목을 지우지 않음" '[ -f "$RHOME/.claude/skills/내스킬/SKILL.md" ]'
+cp "$RHOME/.claude/settings.json" "$TMP/pre-dry.json"
+ri "$UCLONE/install.sh" --reinstall --dry-run --global --agents claude > "$TMP/redry.txt" 2>&1
+check "reinstall --dry-run: 안 바꾸고 안내를 붙임" 'json_eq "$RHOME/.claude/settings.json" "$TMP/pre-dry.json" && [ -L "$RHOME/.claude/skills/bug-fix" ] && grep -q "dry-run 이라 제거가 실제로" "$TMP/redry.txt"'
+check "reinstall 은 --status·--uninstall 과 함께 못 씀" '! ri "$UCLONE/install.sh" --reinstall --status > /dev/null 2>&1'
+
 echo "▶ 개명 마이그레이션 (harness → knack)"
 # 개명 전 이름으로 설치된 흔적을 만들고, 새 설치기가 걷어내는지 본다
 MHOME="$TMP/mig"; mkdir -p "$MHOME/.claude/skills" "$MHOME/.agents/skills" "$MHOME/.local/bin" "$MHOME/.codex/harness/agents"
