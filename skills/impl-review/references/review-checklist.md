@@ -1,52 +1,53 @@
-# 구현 리뷰 체크리스트
+# Implementation review checklist
 
-## 리뷰 원칙
-- 코드로 확인한 것만 지적한다. 모든 지적에 `path:line`과 근거를 붙인다. 확인하지 못한 의심은 ❔ 질문으로 분류한다.
-- diff만 보지 않는다. 변경된 메서드의 호출부, 레퍼런스 기능, 관련 테스트까지 읽고 판단한다.
-- 컨벤션 지적은 레포 관례나 레퍼런스 기능과 다를 때만 한다. 개인 취향은 지적하지 않는다.
-- 칭찬이나 변경 요약은 쓰지 않는다. 문제가 없는 항목은 "이상 없음" 한 줄로 끝낸다.
-- 가능하면 빌드와 관련 테스트를 직접 실행해 본다(읽기 전용 환경이라 실행할 수 없으면 생략).
+## Principles
+- Report only what you verified in code. Every finding needs `path:line` and evidence. Put unverified suspicions under ❔ questions.
+- Don't stop at the diff. Read callers of changed code, the reference feature, and related tests.
+- Flag convention issues only when they differ from the repo's conventions or the reference feature, not from personal taste.
+- No praise and no restating the change. For an item with no issues, write one line: "이상 없음".
+- Run the build and related tests when you can (skip if a read-only environment blocks it).
+- Write all findings in Korean, using the output format below.
 
-## 심각도
-| 등급 | 기준 |
+## Severity
+| Level | Criteria |
 |---|---|
-| 🔴 Blocker | 버그, 데이터 손상·유실, 보안 취약점, 성공 기준 미충족, 하위 호환 파괴 |
-| 🟠 Major | 머지 전에 고쳐야 함: 핵심 경로의 테스트 누락, 트랜잭션·동시성 결함 가능성, 컨벤션에서 크게 벗어남, 설계 범위 밖 변경 |
-| 🟡 Minor | 가독성, 네이밍, 사소한 컨벤션 차이 |
-| ⚪ Nit | 취향에 가까운 개선 |
-| ❔ 질문 | 확인이 필요한 의심 |
+| 🔴 Blocker | Bug, data corruption or loss, security hole, unmet success criterion, broken backward compatibility |
+| 🟠 Major | Must fix before merge: missing tests on the core path, possible transaction or concurrency defect, large deviation from conventions, change outside the design scope |
+| 🟡 Minor | Readability, naming, small convention differences |
+| ⚪ Nit | Close to taste |
+| ❔ Question | A suspicion that needs confirmation |
 
-## 확인 항목
-1. **설계 부합**: 성공 기준마다 코드와 테스트로 충족되는가? 정책 결정(DESIGN 2·3·9절)이 반영됐는가? 설계 밖 변경이 섞였는가?
-2. **정확성**: 경계값, null, 빈 컬렉션, 상태 전이 가드, 예외 경로, 날짜·타임존·금액 반올림
-3. **트랜잭션·동시성**
-   - 트랜잭션 경계 위치, self-invocation, readOnly
-   - 트랜잭션 안에서 외부 API를 호출하는지
-   - 동시 요청·중복 요청(멱등성) 처리, 락과 버전 관리
-   - 이벤트 발행이 커밋 이후에 일어나는지
-4. **데이터**
-   - 마이그레이션 안전성 (`feature-implementation/references/db-migration.md`의 6절 체크리스트)
-   - 엔티티와 스키마 일치, 인덱스, N+1, 대량 조회 시 페이징
-5. **보안**
-   - 인가 누락(다른 사용자의 리소스 접근), 입력 검증, SQL·명령 인젝션
-   - 로그에 개인정보나 시크릿이 남는지, 에러 응답에 내부 정보가 노출되는지
-6. **연동**: 타임아웃, 재시도 시 멱등성, 실패 시 보상·응답, 메시지 스키마 호환
-7. **컨벤션**
-   - 레퍼런스 기능과 비교: 패키지 위치, 네이밍, 계층 책임, 예외·응답 방식, DI, 테스트 스타일
-   - 새 라이브러리나 새 패턴을 들여왔는지
-8. **가독성**
-   - 이름, 함수 크기, 중첩 깊이, 불필요한 추상화
-   - 주석: 코드 재진술, 주석 처리된 코드, 변경 이력
-   - 디버그 코드, 사용하지 않는 코드
-9. **테스트**
-   - 성공 기준, 핵심 분기, 실패 경로가 커버되는지
-   - 테스트 이름이 시나리오를 설명하는지, mock이 과해서 아무것도 검증하지 않는 테스트는 없는지
-   - 불안정 요소(현재 시각, 실행 순서, sleep)가 있는지
-10. **운영**
-    - 로그 레벨과 내용, 메트릭
-    - 새 설정 키가 모든 환경 파일에 반영됐는지, 기능 플래그
+## What to check
+1. **Design fit**: Is every success criterion met by code and tests? Are the policy decisions (DESIGN sections 2, 3, 9) reflected? Any change outside the design?
+2. **Correctness**: boundaries, null, empty collections, state-transition guards, exception paths, dates, time zones, money rounding
+3. **Transactions and concurrency**
+   - Where the transaction boundary sits, self-invocation, readOnly
+   - External API calls inside a transaction
+   - Concurrent and duplicate requests (idempotency), locking and versioning
+   - Events published only after commit
+4. **Data**
+   - Migration safety (section 6 of `harness show ref db-migration`)
+   - Entity/schema match, indexes, N+1, paging for large reads
+5. **Security**
+   - Missing authorization (access to other users' resources), input validation, SQL or command injection
+   - Personal data or secrets in logs, internal details in error responses
+6. **Integrations**: timeouts, idempotent retries, compensation or response on failure, message schema compatibility
+7. **Conventions**
+   - Compare with the reference feature: package location, naming, layer responsibilities, exception and response style, DI, test style
+   - New libraries or patterns introduced
+8. **Readability**
+   - Names, function size, nesting depth, unnecessary abstraction
+   - Comments that restate code, commented-out code, change history in comments
+   - Debug code, unused code
+9. **Tests**
+   - Are success criteria, core branches, and failure paths covered?
+   - Do test names describe scenarios? Tests mocked so heavily they verify nothing?
+   - Flaky elements (current time, ordering, sleep)
+10. **Operations**
+    - Log levels and content, metrics
+    - New config keys present in every environment's config file, feature flags
 
-## 반환 형식
+## Output format (Korean labels)
 ````
 ## 리뷰 결과 — 🔴 n · 🟠 n · 🟡 n · ⚪ n · ❔ n
 검증 실행: <실행한 명령과 결과 / 실행 못 함(이유)>

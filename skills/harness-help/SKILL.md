@@ -1,14 +1,19 @@
 ---
 name: harness-help
-description: 개인 하네스 사용법 안내. 어떤 스킬이 있고 언제 어떻게 부르는지, 결과물 위치, 터미널 명령, 설치·업데이트 방법을 알려준다. "하네스 사용법", "하네스 도움말", "어떤 스킬 있어", "하네스로 뭐 할 수 있어", "harness help" 같은 요청에 사용.
+description: 하네스 사용법 안내 — 스킬·명령·결과물 위치·설치 방법. "하네스 사용법", "harness help" 같은 요청에 사용.
 ---
 
 # Harness Help
 
-1. 이 디렉터리의 `USAGE.md`를 읽는다.
-2. 질문 범위에 맞춰 답한다.
-   - 전반적인 질문이면 "상황별 사용법" 표와 `harness` 터미널 명령 표를 보여준다.
-   - 특정 스킬이나 상황을 물으면 그 부분만 답한다. 세부 단계가 필요하면 해당 스킬의 `../<스킬>/SKILL.md`를 읽고 인용한다.
+사용법 문서를 통째로 읽지 말고 CLI로 필요한 부분만 조회한다.
+
+1. 전반적인 질문이면 다음을 보여준다.
+   - `harness list`: 스킬·룰·훅·서브에이전트와 설치 상태
+   - `harness show usage --section "상황별"`: 상황별 사용법 표
+2. 특정 주제를 물으면 해당 섹션만 조회한다.
+   - 목차: `harness show usage --toc`
+   - 스킬 절차: `harness show skill <이름> --toc` 후 `--section <번호|제목>`
+   - 터미널 명령: `harness show usage --section "터미널"`
 3. 현재 작업 디렉터리 상황에 맞는 다음 요청 예시를 1~2개 제안한다.
    - 예: `.onboarding/`이 없으면 `repo-onboarding`, 커밋되지 않은 변경이 있으면 `impl-review`
-4. 설치 상태를 물으면 `harness status`(없으면 `<하네스 경로>/install.sh --status`)를 실행하고 결과를 요약한다.
+4. 설치 상태를 물으면 `harness doctor` 결과를 요약한다.

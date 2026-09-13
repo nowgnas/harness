@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # install.sh — 하네스를 에이전트(Claude Code, Codex)에 연결한다.
-#   스킬/에이전트: 이 레포를 가리키는 심링크  → git pull 만으로 갱신
-#   전역 규칙:     지시 파일에 마커 블록 삽입  → 기존 내용 보존, 재실행해도 결과 동일
-# macOS 기본 bash 3.2 호환.
+#   스킬·서브에이전트·CLI: 이 레포를 가리키는 심링크           → git pull 만으로 갱신
+#   룰: 지시 파일(CLAUDE.md / AGENTS.md)에 마커 블록 삽입       → 기존 내용 보존
+#   훅: settings.json / hooks.json 에 --harness-hook 표식 항목만 추가·제거 (lib/harness.py)
+#   모델: models.json 기준으로 서브에이전트(Claude 파일·Codex 역할)와 세션 기본 모델 반영 (lib/harness.py)
+# macOS 기본 bash 3.2 호환. 훅 JSON 병합에만 python3 사용.
 set -euo pipefail
 
 HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +21,7 @@ PROJECT=""
 AGENTS=""
 DRY=0
 FORCE=0
-BACKUP_DIR=""
+BACKUP_DIR="$HOME/.harness-backups/$(date +%Y%m%d-%H%M%S)"
 N_SKIP=0
 N_CHANGE=0
 
@@ -27,11 +29,11 @@ usage() {
   cat <<EOF
 사용법: $(basename "$0") [옵션]
 
-  --global              사용자 전역 설정에 설치 (기본값)
-  --project <path>      특정 레포에만 설치 (스킬/에이전트 심링크, .git/info/exclude 등록)
+  --global              사용자 전역 설정에 설치 (기본값): 스킬·서브에이전트·룰·훅·CLI
+  --project <path>      특정 레포에만 설치 (스킬·서브에이전트 링크, .git/info/exclude 등록)
   --agents <list>       대상 에이전트 (쉼표 구분: ${SUPPORTED// /,}). 생략 시 설치된 것 자동 감지
   --status              설치 상태 확인
-  --uninstall           제거 (하네스가 만든 심링크와 마커 블록만 제거)
+  --uninstall           제거 (하네스가 만든 링크·블록·훅만 제거)
   --dry-run             변경하지 않고 무엇이 바뀔지만 출력
   --force               기존 파일과 충돌 시 백업(~/.harness-backups) 후 교체
   -h, --help            도움말
@@ -70,11 +72,11 @@ done
 pretty() { case "$1" in "$HOME"/*) echo "~${1#"$HOME"}" ;; *) echo "$1" ;; esac; }
 say() { printf '  %-7s %s\n' "$1" "$2"; }
 
-backup() {  # 원본을 백업 디렉터리로 복사(copy) 또는 이동(move)
-  [ -z "$BACKUP_DIR" ] && BACKUP_DIR="$HOME/.harness-backups/$(date +%Y%m%d-%H%M%S)"
+backup() {  # 원본을 백업 디렉터리로 복사(copy) 또는 이동(move). 같은 실행에서 이미 백업했으면 원본을 유지
   local dst="$BACKUP_DIR${1#"$HOME"}"
   mkdir -p "$(dirname "$dst")"
-  if [ "$2" = move ]; then mv "$1" "$dst"; else cp -P "$1" "$dst"; fi
+  if [ "$2" = move ]; then mv "$1" "$dst"
+  elif [ ! -e "$dst" ]; then cp -P "$1" "$dst"; fi
 }
 
 # 파일에서 마커 블록을 뺀 내용 (끝의 빈 줄 제거)
@@ -121,6 +123,25 @@ handle_link() {  # src dst
   esac
 }
 
+# 하네스를 가리키지만 대상이 사라진 링크 정리 (스킬 삭제·이름 변경 후)
+prune_links() {  # dir
+  local l t
+  [ -d "$1" ] || return 0
+  for l in "$1"/* "$1"/.[!.]*; do
+    [ -L "$l" ] || continue
+    t="$(readlink "$l")"
+    case "$t" in "$HARNESS_DIR"/*) ;; *) continue ;; esac
+    case "$ACTION" in
+      install) [ -e "$l" ] && continue
+               # 이름이 아직 하네스에 있으면 handle_link 가 교체한다 (dry-run 에서 중복 보고 방지)
+               [ -e "$HARNESS_DIR/skills/$(basename "$l")" ] || [ -e "$HARNESS_DIR/agents/$(basename "$l")" ] && continue
+               N_CHANGE=$((N_CHANGE + 1)); say PRUNE "$(pretty "$l") (하네스에서 삭제된 항목)"; [ $DRY -eq 1 ] || rm "$l" ;;
+      uninstall) N_CHANGE=$((N_CHANGE + 1)); say REMOVE "$(pretty "$l")"; [ $DRY -eq 1 ] || rm "$l" ;;
+      status) [ -e "$l" ] || say BROKEN "$(pretty "$l") (대상 없음 → install 시 정리)" ;;
+    esac
+  done
+}
+
 handle_block() {  # file start end content
   local file="$1" start="$2" end="$3" content="$4" base current new hdr
   base="$(strip_block "$file" "$start" "$end")"
@@ -150,16 +171,87 @@ handle_block() {  # file start end content
   esac
 }
 
+# JSON·TOML 설정 동기화 (lib/harness.py). 출력 마지막 줄 "@@ changes=N skips=M" 로 집계
+py_sync() {  # label, harness.py 인자...
+  local label="$1" out c s
+  shift
+  if ! command -v python3 >/dev/null 2>&1; then
+    N_SKIP=$((N_SKIP + 1)); say SKIP "$label: python3 가 없어 건너뜀"; return
+  fi
+  out="$(python3 "$HARNESS_DIR/lib/harness.py" "$@" --action "$ACTION" --harness "$HARNESS_DIR" \
+    --backup-dir "$BACKUP_DIR" $( [ $DRY -eq 1 ] && echo --dry-run ) $( [ $FORCE -eq 1 ] && echo --force ))" ||
+    { N_SKIP=$((N_SKIP + 1)); say ERROR "$label 동기화 실패"; return; }
+  printf '%s\n' "$out" | grep -v '^@@' || true
+  c="$(printf '%s\n' "$out" | sed -n 's/^@@ changes=\([0-9]*\).*/\1/p')"
+  s="$(printf '%s\n' "$out" | sed -n 's/^@@ .*skips=\([0-9]*\).*/\1/p')"
+  N_CHANGE=$((N_CHANGE + ${c:-0}))
+  N_SKIP=$((N_SKIP + ${s:-0}))
+}
+sync_hooks() { py_sync "훅" hooks-sync --agent "$1" --file "$2"; }
+sync_models() { py_sync "모델·서브에이전트" models-sync --agent "$@"; }
+models_index() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 "$HARNESS_DIR/lib/harness.py" models-index --agent "$1" 2>/dev/null || true
+}
+
+# ── 항목 목록 ─────────────────────────────────
 skill_names() { for d in "$HARNESS_DIR"/skills/*/; do [ -f "$d/SKILL.md" ] && basename "$d"; done; }
 
-# 링크 대상 목록을 "src<TAB>dst" 로 출력
-targets_claude() {  # base_dir
-  local s f
-  for s in $(skill_names); do printf '%s\t%s\n' "$HARNESS_DIR/skills/$s" "$1/skills/$s"; done
-  for f in "$HARNESS_DIR"/adapters/claude/agents/*.md; do
-    [ -f "$f" ] && printf '%s\t%s\n' "$f" "$1/agents/$(basename "$f")"
+rule_load() { sed -n 's/^load: *//p' "$1" | head -1; }
+always_rules() {
+  local f
+  for f in "$HARNESS_DIR"/rules/*.md; do
+    [ -f "$f" ] || continue
+    [ "$(rule_load "$f")" = on-demand ] || echo "$f"
   done
 }
+# on-demand 룰은 본문 대신 한 줄 색인만 넣는다 (토큰 절약)
+ondemand_index() {
+  local f name when found=0
+  for f in "$HARNESS_DIR"/rules/*.md; do
+    [ -f "$f" ] && [ "$(rule_load "$f")" = on-demand ] || continue
+    [ $found -eq 0 ] && echo "필요할 때 읽는 룰 (\`harness show rule <이름>\`):"
+    found=1
+    name="$(sed -n 's/^name: *//p' "$f" | head -1)"
+    when="$(sed -n 's/^when: *//p' "$f" | head -1)"
+    echo "- \`${name:-$(basename "$f" .md)}\`${when:+ — $when}"
+  done
+}
+rule_body() {  # frontmatter 와 앞뒤 빈 줄 제거
+  awk 'NR == 1 && $0 == "---" { fm = 1; next }
+       fm { if ($0 == "---") fm = 0; next }
+       { buf[++n] = $0 }
+       END { s = 1; while (s <= n && buf[s] ~ /^[[:space:]]*$/) s++
+             while (n >= s && buf[n] ~ /^[[:space:]]*$/) n--
+             for (i = s; i <= n; i++) print buf[i] }' "$1"
+}
+claude_rules() {
+  always_rules | sed 's/^/@/'
+  local idx
+  idx="$(ondemand_index)"
+  [ -z "$idx" ] || printf '\n%s\n' "$idx"
+  idx="$(models_index claude)"
+  [ -z "$idx" ] || printf '\n%s\n' "$idx"
+}
+codex_rules() {
+  local f first=1 idx
+  while IFS= read -r f; do
+    [ $first -eq 1 ] || echo
+    first=0
+    rule_body "$f"
+  done < <(always_rules)
+  idx="$(ondemand_index)"
+  [ -z "$idx" ] || printf '\n%s\n' "$idx"
+  idx="$(models_index codex)"
+  [ -z "$idx" ] || printf '\n%s\n' "$idx"
+}
+
+# 링크 대상 목록을 "src<TAB>dst" 로 출력 (서브에이전트는 모델을 넣어 생성하므로 sync_models 가 처리)
+targets_claude() {  # base_dir
+  local s
+  for s in $(skill_names); do printf '%s\t%s\n' "$HARNESS_DIR/skills/$s" "$1/skills/$s"; done
+}
+agent_files() { local f; for f in "$HARNESS_DIR"/agents/*.md; do [ -f "$f" ] && basename "$f"; done; }
 targets_codex() {  # skills_dir
   local s
   for s in $(skill_names); do printf '%s\t%s\n' "$HARNESS_DIR/skills/$s" "$1/$s"; done
@@ -181,15 +273,26 @@ for agent in $AGENTS; do
     case "$agent" in
       claude)
         process_links < <(targets_claude "$HOME/.claude")
-        handle_block "$HOME/.claude/CLAUDE.md" "$MD_START" "$MD_END" "@$HARNESS_DIR/core/AGENTS.md" ;;
+        prune_links "$HOME/.claude/skills"
+        sync_models claude
+        handle_block "$HOME/.claude/CLAUDE.md" "$MD_START" "$MD_END" "$(claude_rules)"
+        sync_hooks claude "$HOME/.claude/settings.json" ;;
       codex)
         process_links < <(targets_codex "$HOME/.agents/skills")
-        handle_block "$CODEX_DIR/AGENTS.md" "$MD_START" "$MD_END" "$(cat "$HARNESS_DIR/core/AGENTS.md")" ;;
+        prune_links "$HOME/.agents/skills"
+        sync_models codex
+        handle_block "$CODEX_DIR/AGENTS.md" "$MD_START" "$MD_END" "$(codex_rules)"
+        sync_hooks codex "$CODEX_DIR/hooks.json" ;;
     esac
   else
     case "$agent" in
-      claude) process_links < <(targets_claude "$PROJECT/.claude") ;;
-      codex)  process_links < <(targets_codex "$PROJECT/.agents/skills") ;;
+      claude)
+        process_links < <(targets_claude "$PROJECT/.claude")
+        prune_links "$PROJECT/.claude/skills"
+        sync_models claude --agents-dir "$PROJECT/.claude/agents" --no-main ;;
+      codex)
+        process_links < <(targets_codex "$PROJECT/.agents/skills")
+        prune_links "$PROJECT/.agents/skills" ;;
     esac
   fi
 done
@@ -215,6 +318,7 @@ if [ "$MODE" = project ] && [ -d "$PROJECT/.git" ]; then
   for agent in $AGENTS; do
     if [ "$agent" = claude ]; then
       excl="$excl$(targets_claude "/.claude" | cut -f2)"$'\n'
+      excl="$excl$(agent_files | sed 's|^|/.claude/agents/|')"$'\n'
     else
       excl="$excl$(targets_codex "/.agents/skills" | cut -f2)"$'\n'
     fi
@@ -228,10 +332,12 @@ echo
 case "$ACTION" in
   status) ;;
   *)
+    backup_note=""
+    [ -d "$BACKUP_DIR" ] && backup_note=" · 백업: $(pretty "$BACKUP_DIR")"
     [ $DRY -eq 1 ] && echo "dry-run 완료: 변경 예정 ${N_CHANGE}건, 건너뜀 ${N_SKIP}건" ||
-      echo "완료: 변경 ${N_CHANGE}건, 건너뜀 ${N_SKIP}건${BACKUP_DIR:+ · 백업: $(pretty "$BACKUP_DIR")}"
+      echo "완료: 변경 ${N_CHANGE}건, 건너뜀 ${N_SKIP}건${backup_note}"
     [ "$ACTION" = install ] && [ $DRY -eq 0 ] && [ $N_CHANGE -gt 0 ] && echo "새 에이전트 세션부터 적용됩니다."
-    [ "$MODE" = project ] && [ "$ACTION" = install ] && echo "참고: 프로젝트 모드는 스킬만 설치합니다. 공통 규칙(core/AGENTS.md)은 --global 에서 주입됩니다."
+    [ "$MODE" = project ] && [ "$ACTION" = install ] && echo "참고: 프로젝트 모드는 스킬·서브에이전트만 설치합니다. 룰·훅은 --global 에서 적용됩니다."
     ;;
 esac
 exit 0

@@ -8,34 +8,37 @@ while [ -L "$self" ]; do
   case "$target" in /*) self="$target" ;; *) self="$(dirname "$self")/$target" ;; esac
 done
 HARNESS_DIR="$(cd "$(dirname "$self")/.." && pwd)"
+PY="$HARNESS_DIR/lib/harness.py"
 
 usage() {
   cat <<EOF
 사용법: harness <명령>
-  help [스킬]  skills  status  update  install [옵션]  uninstall [옵션]  scan [경로]  test  version
+  조회   list [종류] [--all]  show <종류> <이름> [--toc|--section N]  search <키워드>  doctor  skills
+  모델   model [list|get|which|set]  run <작업|auto> [--agent] [--print] -- <프롬프트>
+  측정   usage [--since 7d] [--by session|model|day|skill|cwd]  bench <init|run|compare|list>
+  관리   add skill <경로|URL>  new <skill|rule|hook> <이름>  adopt skill <이름>  hook <enable|disable> <이름>
+  설치   install [옵션]  status  update  uninstall [옵션]
+  기타   help [스킬]  scan [경로]  test  version
 자세한 내용: harness help
 EOF
 }
 
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
+[ "$cmd" = ls ] && cmd=list
 
 case "$cmd" in
   help|-h|--help)
     if [ $# -gt 0 ]; then
-      f="$HARNESS_DIR/skills/$1/SKILL.md"
-      [ -f "$f" ] || { echo "스킬을 찾을 수 없습니다: $1 (harness skills 로 목록 확인)" >&2; exit 1; }
-      cat "$f"
+      exec python3 "$PY" show skill "$1"
     else
       cat "$HARNESS_DIR/skills/harness-help/USAGE.md"
     fi ;;
-  skills)
-    for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
-      printf '  %-24s %s\n' "$(sed -n 's/^name: *//p' "$f" | head -1)" \
-        "$(sed -n 's/^description: *//p' "$f" | head -1 | cut -d. -f1)."
-    done ;;
+  skills)    exec python3 "$PY" list skills "$@" ;;
+  list|show|search|doctor|add|adopt|new|hook|model|run|usage|bench)
+             exec python3 "$PY" "$cmd" "$@" ;;
   status)    exec "$HARNESS_DIR/install.sh" --status "$@" ;;
-  install)   [ $# -eq 0 ] && set -- --global; exec "$HARNESS_DIR/install.sh" "$@" ;;
+  install)   exec "$HARNESS_DIR/install.sh" "$@" ;;
   update)    git -C "$HARNESS_DIR" pull --ff-only && exec "$HARNESS_DIR/install.sh" --global "$@" ;;
   uninstall) exec "$HARNESS_DIR/install.sh" --uninstall "$@" ;;
   scan)      exec bash "$HARNESS_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "${1:-.}" ;;

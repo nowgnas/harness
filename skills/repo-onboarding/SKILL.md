@@ -1,110 +1,45 @@
 ---
 name: repo-onboarding
-description: 처음 보는 코드베이스/레포/프로젝트를 백엔드 개발자 관점에서 체계적으로 파악하고 온보딩 문서를 만든다. "이 레포 파악해줘", "프로젝트 구조 설명", "온보딩", "코드베이스 분석", "처음 보는 프로젝트", "onboard", "explain this repo" 같은 요청에 사용. Java/Spring, .NET(C#) 백엔드에 특화.
+description: 처음 보는 백엔드 레포 전체를 파악해 온보딩 문서(.onboarding/)를 만든다. "이 레포 파악해줘", "quick으로 온보딩", "onboard this repo" 같은 요청에 사용.
 ---
 
 # Repo Onboarding
 
-처음 보는 백엔드 레포를 단계적으로 파악해 대상 레포의 `.onboarding/`에 문서로 남긴다.
-경로는 모두 **이 SKILL.md가 있는 디렉터리 기준 상대 경로**다.
+처음 보는 백엔드 레포(Java/Spring, .NET 중심)를 단계적으로 파악해 대상 레포의 `.onboarding/`에 남긴다.
+단계별 세부 절차는 필요한 단계만 읽는다: `harness show ref onboarding-phases --section <단계 번호>`.
 
-## 0. 모드 결정
-
-사용자 요청에서 깊이를 정한다. 명시가 없으면 `standard`.
-
+## 모드
 | 모드 | 단계 | 용도 |
 |---|---|---|
-| `quick` | 0 → 1 → 2 | 5분 안에 "뭐 하는 레포인지" 파악 |
-| `standard` | 0 → 6 | 개발 투입 전 전반 파악 (흐름 추적 1개) |
-| `deep` | 0 → 7 | 담당 서비스 인수인계 수준 (흐름 추적 2~3개, 리스크 분석) |
+| `quick` | 0–2 | 무엇을 하는 레포인지 빠르게 파악 |
+| `standard` (기본) | 0–6 | 개발 투입 전 전반 파악, 핵심 흐름 1개 |
+| `deep` | 0–7 | 인수인계 수준, 핵심 흐름 2–3개와 리스크 |
 
-사용자가 특정 관심사를 말했으면(예: "주문 도메인 위주로") 해당 영역에 가중치를 둔다.
+사용자가 관심 영역을 말하면 그 영역에 가중치를 둔다.
 
-## 준비: 출력 디렉터리
-
+## 준비
 ```bash
 mkdir -p .onboarding/flows && printf '*\n' > .onboarding/.gitignore
 ```
-`.gitignore`에 `*`를 넣어 `.onboarding/` 전체가 커밋되지 않게 한다 (전역 git 설정을 건드리지 않음).
+재실행이면 `ONBOARDING.md`의 기준 커밋 이후 변경분(`git log --oneline <sha>..HEAD`)만 반영한다.
 
-**재실행 시**: `.onboarding/ONBOARDING.md` 헤더의 `기준 커밋`을 읽고
-`git log --oneline <sha>..HEAD`, `git diff --stat <sha>..HEAD`로 변경분만 확인해 문서를 갱신한다.
-
-## 단계 0. 지문 채취 (스크립트, LLM 추론 없음)
-
-```bash
-bash scripts/repo-scan.sh <레포루트> > .onboarding/scan.md
-```
-결과(`scan.md`)를 읽고 스택을 판별한 뒤, 해당 스택 참조 문서를 **필요한 부분만** 읽는다:
-- Java/Kotlin (Spring 등) → `references/stacks/java-spring.md`
-- .NET (C#) → `references/stacks/dotnet.md`
-- 관점별 체크리스트 → `references/backend-lenses.md`
-
-스캔 결과를 그대로 믿지 말고 단서로만 쓴다. 이후 단계에서 실제 코드로 확인한다.
-
-## 단계 1. 큰 그림
-- README, `docs/`, ADR, 위키 링크를 읽는다.
-- 모듈/프로젝트 지도: 각 모듈(Gradle subproject, Maven module, .csproj)의 역할과 의존 방향.
-- 런타임 구성: 이 레포가 배포되면 무엇이 뜨는가(API 서버, 워커, 배치)와 붙는 인프라(DB, MQ, 캐시, 외부 API).
-- 아키텍처 스타일: 레이어드 / 헥사고날 / Clean Architecture / CQRS 중 무엇에 가까운지, 근거와 함께.
-
-## 단계 2. 진입점
-외부에서 코드가 실행되는 모든 입구를 표로 만든다.
-- HTTP API (컨트롤러, 라우트), gRPC
-- 메시지 컨슈머 (Kafka, RabbitMQ, SQS, Azure Service Bus)
-- 스케줄러/배치 (Spring Batch, `@Scheduled`, Quartz, Hangfire, `BackgroundService`)
-- CLI/초기화 러너 (`CommandLineRunner`, `IHostedService`)
-
-API가 많으면 전부 나열하지 말고 컨트롤러/리소스 단위로 묶고 개수를 적는다.
-
-## 단계 3. 핵심 흐름 추적
-가장 중요한 비즈니스 흐름을 고른다(사용자 지정 > 호출 빈도가 높아 보이는 것 > 핫스팟 파일이 관여하는 것).
-`trace-flow` 스킬의 절차로 진입점 → 비즈니스 로직 → 데이터 접근 → 부수효과까지 추적하고
-`.onboarding/flows/<slug>.md`에 저장한다. `trace-flow`를 쓸 수 없으면 같은 형식으로 직접 작성한다.
-
-## 단계 4. 데이터
-- 엔티티/테이블 목록과 핵심 관계 (mermaid `erDiagram`, 핵심 10개 이내)
-- 데이터 접근 방식: JPA/MyBatis/jOOQ/JDBC, EF Core/Dapper/ADO.NET
-- 마이그레이션 도구와 위치, 트랜잭션 경계가 어디서 잡히는지
-- 여러 DB/데이터소스가 있으면 각각의 용도
-
-## 단계 5. 연동
-- 외부 API 클라이언트 (Feign, WebClient, RestTemplate, HttpClient/Refit): 대상, 타임아웃, 재시도
-- 메시징: 발행/구독 토픽·큐 목록
-- 캐시: 무엇을 어떤 키로 얼마나
-- 인증/인가: 방식(JWT, 세션, OAuth), 필터/미들웨어 위치
-
-## 단계 6. 운영
-- 로컬 실행: 필요한 의존성(docker-compose 등), 실행 명령, 필요한 설정/환경변수 **키 이름**
-- 테스트: 종류(단위/통합/Testcontainers), 실행 명령
-- 설정/프로파일 체계: 환경별 파일과 오버라이드 순서
-- 빌드/배포: CI 파이프라인, 컨테이너, K8s/Helm
-- 관측성: 로깅 프레임워크, 메트릭, 트레이싱, 헬스체크
-
-**시크릿 값은 절대 문서에 옮기지 않는다.** 키 이름만 적는다.
-
-## 단계 7. 리스크와 질문 (deep)
-- 핫스팟(자주 바뀌는 파일)과 크고 복잡한 클래스
-- 테스트가 없는 핵심 로직, TODO/FIXME 밀집 구역, deprecated 의존성
-- 코드만으로 답할 수 없는 것 → `QUESTIONS.md`
-
-## 병렬 실행 (가능한 에이전트만)
-서브에이전트 기능이 있으면(예: Claude Code의 `repo-explorer` 에이전트) 단계 0 결과를 넘겨주고
-단계 1·2·4·5를 관점별로 병렬 위임한 뒤 결과를 합친다. 각 위임에는 스택, 관심 관점, 반환 형식
-(`주장 — 근거 file:line`)을 명시한다. 기능이 없으면 순서대로 직접 수행한다.
-
-## 산출물
-`templates/`의 템플릿을 채워 저장한다.
-
-| 파일 | 내용 |
+## 단계
+| # | 목표 |
 |---|---|
-| `.onboarding/ONBOARDING.md` | 메인 문서 (요약, 아키텍처, 진입점, 흐름, 데이터, 연동, 운영) |
-| `.onboarding/GLOSSARY.md` | 도메인 용어 ↔ 코드 식별자 매핑 |
-| `.onboarding/QUESTIONS.md` | 팀에 물어볼 질문, 불확실한 추정 |
-| `.onboarding/flows/*.md` | 흐름 추적 결과 |
-| `.onboarding/scan.md` | 단계 0 원본 스캔 |
+| 0 | 스택·구조·진입점 단서: `bash scripts/repo-scan.sh <루트> > .onboarding/scan.md` (LLM 추론 없음) |
+| 1 | 큰 그림: 역할, 모듈 지도, 런타임 구성, 아키텍처 스타일 |
+| 2 | 진입점: HTTP, 메시지 컨슈머, 배치·스케줄러, 러너 |
+| 3 | 핵심 흐름: `trace-flow` 절차로 추적 |
+| 4 | 데이터: 엔티티·관계, 접근 방식, 마이그레이션, 트랜잭션 경계 |
+| 5 | 연동: 외부 API, 메시징, 캐시, 인증·인가 |
+| 6 | 운영: 로컬 실행, 테스트, 설정, 배포, 관측성 |
+| 7 | 리스크와 열린 질문 (deep) |
 
-## 작성 규칙
-- 모든 사실 주장에 근거 `path:line`을 단다. 확인 못 한 것은 `(추정)`.
-- 코드 전체를 복붙하지 않는다. 핵심 시그니처나 몇 줄만.
-- 끝나면 사용자에게: 3줄 요약, 생성 파일 목록, 가장 먼저 읽어볼 파일 5개, 열린 질문 상위 3개를 보고한다.
+- 스택 참조는 스캔으로 판별한 것만, 목차부터 본다: `harness show ref java-spring --toc`, `harness show ref dotnet --toc`, `harness show ref backend-lenses --toc`.
+- 서브에이전트를 쓸 수 있으면 1·2·4·5단계를 `repo-explorer`에 관점별로 병렬 위임한다.
+
+## 산출물과 완료 기준
+`templates/ONBOARDING.md`, `templates/GLOSSARY.md`, `templates/QUESTIONS.md`를 채워 `.onboarding/`에 저장한다(흐름은 `flows/`).
+
+완료 = 모드의 모든 단계가 문서에 반영되고, 사실 주장마다 `path:line` 근거(미확인은 `(추정)`)가 있으며, 3줄 요약·먼저 읽을 파일 5개·열린 질문 상위 3개를 보고한 상태.
+단계 사이에 중간 확인을 받지 않는다. 시크릿 값은 문서에 옮기지 않는다.
