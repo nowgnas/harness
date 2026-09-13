@@ -25,7 +25,7 @@ knack help                      # 사용법
 | 훅 | `hooks/<name>/hook.json` + 스크립트 | `~/.claude/settings.json`의 `hooks` | `~/.codex/hooks.json` |
 | 페르소나 | `persona/core.md` (gitignore) | 지시 블록 맨 앞에 주입 | 동일 |
 | CLI | `bin/knack` | `~/.local/bin/knack` 링크 | 동일 |
-| 플러그인·MCP | — | 조회만 (`knack list plugins`, `knack list mcp`) | 조회만 |
+| 플러그인·MCP | — | 조회만 (`knack list plugins`: Claude Code·데스크톱 앱 플러그인, `knack list mcp`) | 조회만 |
 
 - 기존 설정은 보존합니다. 지시 파일은 `<!-- knack:start -->` 블록만, 훅 파일은 `--knack-hook` 표식이 있는 항목만 관리합니다.
 - `harness` 에서 개명했습니다. `knack install` 한 번으로 구 블록·훅·링크가 정리되고, `HARNESS_*` 환경변수는 당분간 함께 동작합니다.

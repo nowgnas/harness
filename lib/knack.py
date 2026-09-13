@@ -29,6 +29,9 @@ AGENT_DIR = CLAUDE / "agents"
 RULE_FILES = {"claude": CLAUDE / "CLAUDE.md", "codex": CODEX_HOME / "AGENTS.md"}
 HOOK_FILES = {"claude": CLAUDE / "settings.json", "codex": CODEX_HOME / "hooks.json"}
 EXTERNAL_SKILL_DIRS = [CLAUDE / "skills", HOME / ".agents" / "skills", CODEX_HOME / "skills"]
+# 데스크톱 앱(Cowork) 데이터 폴더. macOS 경로로 확인했고 Linux·Windows 는 같은 구조라고 가정한다.
+DESKTOP_DIRS = [HOME / "Library" / "Application Support" / "Claude", HOME / ".config" / "Claude"] + \
+    ([Path(os.environ["APPDATA"]) / "Claude"] if os.environ.get("APPDATA") else [])
 
 TYPES = ("skills", "rules", "agents", "hooks", "plugins", "mcp")
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PermissionRequest", "UserPromptSubmit",
@@ -232,17 +235,48 @@ def hook_installed(hook):
 
 
 # ── 외부 항목 (조회 전용) ──────────────────────
+def plugin_skills(root):
+    d = root / "skills"
+    return sorted(s.name for s in d.iterdir() if (s / "SKILL.md").is_file()) if d.is_dir() else []
+
+
 def plugins():
     data = load_json(CLAUDE / "plugins" / "installed_plugins.json") or {}
     enabled = (load_json(CLAUDE / "settings.json") or {}).get("enabledPlugins") or {}
     out = []
     for pid, installs in (data.get("plugins") or {}).items():
         inst = installs[0] if isinstance(installs, list) and installs else (installs if isinstance(installs, dict) else {})
-        skills_dir = Path(inst["installPath"]) / "skills" if inst.get("installPath") else None
-        skills = sorted(d.name for d in skills_dir.iterdir() if (d / "SKILL.md").is_file()) \
-            if skills_dir and skills_dir.is_dir() else []
+        skills = plugin_skills(Path(inst["installPath"])) if inst.get("installPath") else []
         out.append({"id": pid, "short": pid.split("@")[0], "version": inst.get("version", ""),
                     "enabled": bool(enabled.get(pid)), "skills": skills})
+    return out
+
+
+def desktop_plugins():
+    """데스크톱 앱(Cowork)이 계정별로 내려받은 플러그인. Claude Code 의 installed_plugins.json 에는 기록되지 않는다.
+    rpm/ 은 마켓플레이스에서 설치한 것, skills-plugin/ 은 앱이 기본 제공하는 스킬 묶음이다."""
+    out, seen = [], set()
+
+    def add(pid, version, origin, root):
+        if pid not in seen:
+            seen.add(pid)
+            out.append({"id": pid, "short": pid.split("@")[0], "version": version, "origin": origin,
+                        "skills": plugin_skills(root)})
+
+    for base in DESKTOP_DIRS:
+        sessions = base / "local-agent-mode-sessions"
+        if not sessions.is_dir():
+            continue
+        for manifest in sorted(sessions.glob("*/*/rpm/manifest.json")):
+            for p in (load_json(manifest) or {}).get("plugins") or []:
+                root = manifest.parent / p.get("id", "")
+                meta = load_json(root / ".claude-plugin" / "plugin.json") or {}
+                name = p.get("name") or meta.get("name") or p.get("id", "?")
+                add(f'{name}@{p.get("marketplaceName", "?")}', meta.get("version", ""),
+                    f'{p.get("installedBy", "?")} 설치', root)
+        for meta_file in sorted(sessions.glob("skills-plugin/*/*/.claude-plugin/plugin.json")):
+            meta = load_json(meta_file) or {}
+            add(meta.get("name") or "skills-plugin", meta.get("version", ""), "앱 기본 제공", meta_file.parent.parent)
     return out
 
 
@@ -269,6 +303,9 @@ def external_skills():
     for p in plugins():
         for s in p["skills"]:
             add(f'{p["short"]}:{s}', f'plugin {p["id"]}')
+    for p in desktop_plugins():
+        for s in p["skills"]:
+            add(f'{p["short"]}:{s}', f'desktop {p["id"]}')
     return found
 
 
@@ -364,6 +401,7 @@ def cmd_list(a):
             out["external_hooks"] = external_hooks()
     if "plugins" in types and ext:
         out["plugins"] = plugins()
+        out["desktop_plugins"] = desktop_plugins()
     if "mcp" in types and ext:
         out["mcp"] = mcp_servers()
     if a.json:
@@ -410,6 +448,10 @@ def print_list(out):
         print(f"\n[Claude 플러그인 {len(out['plugins'])}]")
         for p in out["plugins"]:
             print(f"  {p['id']:<44} {'on ' if p['enabled'] else 'off'} {p['version']:<8} 스킬 {len(p['skills'])}")
+    if "desktop_plugins" in out:
+        print(f"\n[데스크톱 앱 플러그인 {len(out['desktop_plugins'])} — 앱에서 관리]")
+        for p in out["desktop_plugins"]:
+            print(f"  {p['id']:<44} {p['origin']:<8} {p['version']:<8} 스킬 {len(p['skills'])}")
     if "mcp" in out:
         print(f"\n[MCP 서버 {len(out['mcp'])}]")
         for name, locs in sorted(out["mcp"].items()):

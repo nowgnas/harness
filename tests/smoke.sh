@@ -121,6 +121,13 @@ printf -- '---\nname: my-ext\ndescription: external skill for test\n---\n' > "$H
 printf -- '---\nname: foo\ndescription: plugin skill\n---\n' > "$HOME/.claude/plugins/cache/demo/skills/foo/SKILL.md"
 printf '{"version": 2, "plugins": {"demo@market": [{"installPath": "%s", "version": "1.0.0"}]}}\n' "$HOME/.claude/plugins/cache/demo" > "$HOME/.claude/plugins/installed_plugins.json"
 printf '{"mcpServers": {"svc": {"command": "x"}}}\n' > "$HOME/.claude.json"
+DS="$HOME/Library/Application Support/Claude/local-agent-mode-sessions"
+mkdir -p "$DS/acc/org/rpm/plugin_T/.claude-plugin" "$DS/acc/org/rpm/plugin_T/skills/review" "$DS/skills-plugin/org/acc/.claude-plugin" "$DS/skills-plugin/org/acc/skills/docx"
+printf '{"plugins": [{"id": "plugin_T", "name": "eng", "marketplaceName": "kwp", "installedBy": "user"}]}\n' > "$DS/acc/org/rpm/manifest.json"
+printf '{"name": "eng", "version": "1.2.0"}\n' > "$DS/acc/org/rpm/plugin_T/.claude-plugin/plugin.json"
+printf -- '---\nname: review\ndescription: desktop plugin skill\n---\n' > "$DS/acc/org/rpm/plugin_T/skills/review/SKILL.md"
+printf '{"name": "anthropic-skills", "version": "1.0.0"}\n' > "$DS/skills-plugin/org/acc/.claude-plugin/plugin.json"
+printf -- '---\nname: docx\ndescription: app skill\n---\n' > "$DS/skills-plugin/org/acc/skills/docx/SKILL.md"
 "$H" list > "$TMP/list.txt"
 check "list: 스킬 설치 상태" 'contains "$TMP/list.txt" "[✓ ✓] bug-fix"'
 check "list: 서브에이전트 (claude·codex)" 'grep -q "\[✓ ✓\] git-ops" "$TMP/list.txt"'
@@ -129,6 +136,9 @@ check "list: 훅 설치 상태" 'grep -q "\[✓ ✓\] guard-agent-config" "$TMP/
 "$H" list --all > "$TMP/list-all.txt"
 check "list --all: 외부 스킬·플러그인 스킬·외부 서브에이전트" 'contains "$TMP/list-all.txt" "my-ext" && contains "$TMP/list-all.txt" "demo:foo" && contains "$TMP/list-all.txt" "my-agent.md"'
 check "list --all: 외부 훅" 'contains "$TMP/list-all.txt" "PermissionRequest" && contains "$TMP/list-all.txt" "echo hi"'
+check "list --all: 데스크톱 앱 플러그인 스킬 (마켓플레이스·앱 기본 제공)" 'contains "$TMP/list-all.txt" "eng:review" && contains "$TMP/list-all.txt" "anthropic-skills:docx"'
+"$H" list plugins > "$TMP/list-plugins.txt"
+check "list plugins: 데스크톱 앱 플러그인·설치 주체·버전" 'contains "$TMP/list-plugins.txt" "[데스크톱 앱 플러그인 2" && grep -q "eng@kwp .*user 설치 .*1\.2\.0 .*스킬 1" "$TMP/list-plugins.txt" && contains "$TMP/list-plugins.txt" "앱 기본 제공"'
 "$H" list mcp > "$TMP/list-mcp.txt"
 check "list mcp: Claude·Codex 서버 (하위 테이블 제외)" 'contains "$TMP/list-mcp.txt" "svc" && contains "$TMP/list-mcp.txt" "cx " && ! contains "$TMP/list-mcp.txt" "cx.env"'
 check "list --json 파싱 가능" '"$H" list --all --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert d[\"skills\"] and \"external_skills\" in d"'

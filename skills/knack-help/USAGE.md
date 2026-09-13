@@ -156,7 +156,7 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 
 | 명령 | 설명 |
 |---|---|
-| `knack list [skills\|rules\|agents\|hooks\|plugins\|mcp] [--all] [--json]` | 하네스 항목과 설치 상태. `--all`이면 외부 스킬·룰·훅·플러그인·MCP까지 |
+| `knack list [skills\|rules\|agents\|hooks\|plugins\|mcp] [--all] [--json]` | 하네스 항목과 설치 상태. `--all`이면 외부 스킬·룰·훅·플러그인(Claude Code·데스크톱 앱)·MCP까지 |
 | `knack show <skill\|rule\|agent\|hook\|ref\|template\|usage> <이름> [--toc\|--section N\|--path]` | 필요한 부분만 조회 (예: `knack show ref db-migration --section 2`) |
 | `knack search <키워드> [-l] [-E]` | 하네스 문서 검색 (`path:line`) |
 | `knack doctor` | 구조·중복·설치 상태·환경 점검 |
