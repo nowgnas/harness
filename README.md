@@ -2,6 +2,7 @@
 
 백엔드 개발자용 개인 에이전트 하네스입니다. **Claude Code**와 **Codex**의 스킬·룰·훅·서브에이전트를 이 레포 하나에서 관리합니다.
 노트북이 바뀌어도 클론한 뒤 `install.sh`를 한 번 실행하면 같은 환경이 됩니다.
+개발 절차는 knack 스킬로 통일하고, [superpowers](https://github.com/obra/superpowers)와 [unlazy](https://github.com/Leonxlnx/unlazy)의 검증 규율은 그 안에 흡수했습니다([작업 규율](#작업-규율)).
 
 ## 빠른 시작
 
@@ -39,11 +40,61 @@ knack help                      # 사용법
 |---|---|---|
 | `repo-onboarding` | 처음 보는 레포 파악 → `.onboarding/` 문서 | "이 레포 파악해줘" |
 | `trace-flow` | 엔드포인트·메시지·배치 흐름 추적 | "POST /api/orders 흐름 따라가줘" |
-| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 독립 리뷰 → 요약. 고위험이면 완료 게이트 | "주문 취소 API 추가해줘" |
+| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 셀프·독립 리뷰 → 요약. 고위험이면 완료 게이트 | "주문 취소 API 추가해줘" |
 | `bug-fix` | 재현 → 원인 입증 → 수정 계획 → 최소 수정 → 되돌림 확인 → 영향 데이터 점검 | "이 스택트레이스 원인 찾아서 고쳐줘" |
 | `impl-review` | 구현 맥락이 없는 리뷰어가 요약 대신 코드로 성공 기준을 대조 | "머지 전에 내 변경사항 리뷰해줘" |
-| `knack-manage` | 스킬·룰·훅 조회·추가·설치 | "이 스킬 설치해줘" |
+| `persona` | 자기소개·배경을 에이전트가 쓰는 페르소나(결정 형태)로 정리 | "내 정보 등록해줘" |
+| `knack-manage` | 스킬·룰·훅·서브에이전트·모델 라우팅 관리, 벤치 | "이 스킬 설치해줘", "하네스 벤치 돌려줘" |
 | `knack-help` | 사용법 안내 ([USAGE.md](skills/knack-help/USAGE.md)) | "하네스 사용법 알려줘" |
+
+## 작업 규율
+
+범용 방법론을 옆에 따로 두면 같은 요청마다 절차가 경쟁하고 토큰도 늘어납니다. 그래서 knack 스킬을 기본 절차로 두고, 두 방법론에서 knack에 없던 강점만 가져와 스킬 안에 넣었습니다.
+매 세션 로드되는 룰은 한 줄만 늘었고, 나머지는 해당 단계에서만 읽는 ref에 있습니다.
+
+| 규율 | 출처 | 적용 위치 |
+|---|---|---|
+| 완료·통과를 말하기 전에 이번 턴에 검증 명령을 실행하고 출력으로 확인. 서브에이전트 보고도 diff·테스트로 확인 | superpowers `verification-before-completion` | 룰 `core` |
+| 성공 기준 테스트는 구현 전에 실패부터 확인 | superpowers `test-driven-development` | `feature-implementation` 6단계 |
+| 컴포넌트 경계마다 증거 수집, 잘못된 값의 출처까지 역추적, 가설·변경은 하나씩. 세 번 실패하면 구조 문제로 보고 | superpowers `systematic-debugging` | `bug-fix` 3·5단계 |
+| 수정을 되돌리면 재현 테스트가 다시 실패하는지 확인 | superpowers `verification-before-completion` | `bug-fix` 6단계 |
+| 리뷰어는 구현자 요약을 믿지 않고 성공 기준을 코드와 한 줄씩 대조. mock만 검증하는 테스트는 커버리지로 치지 않음 | superpowers 스펙 리뷰어(`subagent-driven-development`), `testing-anti-patterns` | `impl-reviewer`, 리뷰 체크리스트 |
+| 지적은 코드로 사실인지 확인한 뒤 한 건씩 반영, 틀리면 근거로 반박. 불명확한 지적이 있으면 전부 멈춤 | superpowers `receiving-code-review` | `impl-review` 3단계 |
+| 완성도 → 도메인 전문가의 눈 → 결함 사냥 → 정리 순서의 셀프 리뷰 | unlazy 4-pass | `feature-implementation` 8단계 |
+| 고위험 변경은 설계 때 `GATES.md` 승인, 보고 직전 전부 재실행, 불가능한 게이트는 인계 | unlazy `GATES.md`·`--reverify`·`ABANDON` | ref `high-risk-gates`, `knack gate` |
+
+가져오지 않은 것:
+- superpowers의 brainstorming·writing-plans·executing-plans·subagent-driven 개발 흐름 — 정책 점검과 `DESIGN.md` 설계 게이트가 같은 역할을 합니다.
+- superpowers의 "테스트 없이 짠 코드는 삭제" 규칙과 압박성 문구 — 레거시 백엔드에는 과합니다.
+- superpowers의 worktree·브랜치 마무리 — `git-ops` 서브에이전트가 맡습니다.
+- unlazy의 Depth Tree·병렬 fan-out·stop 훅 — 기능 하나·버그 하나 단위 작업에는 필요 없고 토큰 비용이 큽니다.
+
+두 저장소 모두 MIT 라이선스이며, 개념과 게이트 형식만 가져와 한국어로 다시 썼습니다.
+
+### 완료 게이트 (고위험 변경)
+
+결제·정산, 마이그레이션, 동시성, 메시지 재처리처럼 "테스트 몇 개 통과"로 완료를 판단하기 어려운 변경은 설계 때 `GATES.md`에 관찰 가능한 결과를 명령(`CHECK:`)과 기대 출력(`EXPECT:`)으로 적어 승인받고, 완료 보고 직전에 전부 다시 실행합니다. 규칙은 `knack show ref high-risk-gates`.
+
+```bash
+knack gate status .design/<slug>/GATES.md     # 실행 없이 상태·경고
+knack gate run .design/<slug>/GATES.md        # 미충족 자동 게이트만 실행, EVIDENCE 기록
+knack gate reverify .design/<slug>/GATES.md   # 충족된 것까지 전부 다시 실행 (보고 직전)
+```
+
+## 룰·훅·서브에이전트
+
+| 종류 | 이름 | 내용 |
+|---|---|---|
+| 룰 (always) | `core` | 답변 언어, 영향 범위만큼 읽기, 컨벤션 우선, 근거·검증 증거 |
+| 룰 (always) | `coding` | 컨벤션·방법론 준수, 가독성, 주석 최소화, 범위 준수 |
+| 룰 (always) | `backend-safety` | 마이그레이션, 트랜잭션·동시성 알림, 시크릿, 운영 환경 쓰기 금지 |
+| 룰 (always) | `knack` | 에이전트 설정은 하네스로 관리, 조회는 knack CLI로 필요한 부분만 |
+| 룰 (on-demand) | `git` | 커밋·브랜치·푸시·PR |
+| 훅 | `guard-agent-config` | 에이전트 설정 폴더에 직접 쓰는(설치·삭제) 명령을 막고 knack 명령을 안내 |
+| 훅 | `knack-stale` | 설치본이 레포와 다르면 세션 시작 때 알림 (Claude) |
+| 서브에이전트 | `impl-reviewer` | 구현 맥락 없는 독립 리뷰 (읽기 전용) |
+| 서브에이전트 | `repo-explorer` | 읽기 전용 코드 탐색 |
+| 서브에이전트 | `git-ops` | 커밋·푸시·브랜치·PR 위임 |
 
 ## 토큰을 아끼는 조회
 
@@ -65,21 +116,13 @@ always 룰은 매 세션 로드되므로 짧게 유지합니다. 가끔 필요�
 ```bash
 knack add skill https://github.com/owner/repo.git --subdir skills/foo   # 외부 스킬 추가
 knack new skill my-skill | new rule team-style | new hook my-hook       # 뼈대 생성
-knack adopt skill dev-guide                                             # 외부 스킬을 하네스로 이동
+knack adopt skill <이름>                                                # 외부 스킬을 하네스로 이동
+knack list plugins                                                      # Claude Code·데스크톱 앱 플러그인
 knack hook disable guard-agent-config                                   # 훅 끄기
-knack install --dry-run && knack install                              # 적용
+knack install --dry-run && knack install                                # 적용
 ```
 
-## 완료 게이트 (고위험 변경)
-
-결제·정산, 마이그레이션, 동시성, 메시지 재처리처럼 "테스트 몇 개 통과"로 완료를 판단하기 어려운 변경은 설계 때 `GATES.md`에 관찰 가능한 결과를 명령(`CHECK:`)과 기대 출력(`EXPECT:`)으로 적어 승인받고, 완료 보고 직전에 전부 다시 실행합니다.
-형식은 [unlazy](https://github.com/Leonxlnx/unlazy)(MIT)의 게이트 형식 일부를 가져왔습니다. 규칙은 `knack show ref high-risk-gates`.
-
-```bash
-knack gate status .design/<slug>/GATES.md     # 실행 없이 상태·경고
-knack gate run .design/<slug>/GATES.md        # 미충족 자동 게이트만 실행, EVIDENCE 기록
-knack gate reverify .design/<slug>/GATES.md   # 충족된 것까지 전부 다시 실행 (보고 직전)
-```
+외부 스킬 제거는 가드 훅이 막습니다. 에이전트가 백업·삭제 명령을 안내하면 사용자가 실행합니다.
 
 ## 측정
 
@@ -98,14 +141,17 @@ skills/<name>/          에이전트 중립 스킬 (SKILL.md + references/ templ
 agents/                 서브에이전트 (frontmatter task: → models.json 의 작업 유형)
 models.json             작업 유형별 모델 라우팅 (티어 → 에이전트별 모델·effort, 세션 기본 모델)
 hooks/<name>/           훅 정의(hook.json)와 스크립트
-lib/knack.py          조회·관리·훅·모델 동기화 (python3 표준 라이브러리)
+persona/                페르소나 템플릿 (core.md·detail/ 은 gitignore)
+lib/knack.py            조회·관리·훅·모델 동기화 (python3 표준 라이브러리)
 lib/usage.py            세션 로그 토큰 집계 (knack usage)
 lib/bench.py            작업 세트 조건별 실행·비교 (knack bench)
 lib/gate.py             완료 게이트 확인·실행·재검증 (knack gate)
+lib/persona.py          페르소나 조회·수정 (knack persona)
 bench/                  벤치 작업 예시
-bin/knack             CLI
+bin/knack               CLI
 install.sh              설치/상태/제거
-tests/smoke.sh          임시 HOME에서 설치·조회·관리·훅 검증
+tests/smoke.sh          임시 HOME에서 설치·조회·관리·훅·게이트 검증
+AGENTS.md               레포 작업 가이드 (CLAUDE.md 는 이를 import)
 ```
 
 ## 업데이트 · 제거

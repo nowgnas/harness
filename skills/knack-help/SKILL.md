@@ -14,6 +14,7 @@ description: 하네스 사용법 안내 — 스킬·명령·결과물 위치·�
    - 목차: `knack show usage --toc`
    - 스킬 절차: `knack show skill <이름> --toc` 후 `--section <번호|제목>`
    - 터미널 명령: `knack show usage --section "터미널"`
+   - 고위험 변경의 완료 게이트: `knack show usage --section "완료 게이트"`, 규칙 전체는 `knack show ref high-risk-gates --toc`
 3. 현재 작업 디렉터리 상황에 맞는 다음 요청 예시를 1~2개 제안한다.
    - 예: `.onboarding/`이 없으면 `repo-onboarding`, 커밋되지 않은 변경이 있으면 `impl-review`
 4. 설치 상태를 물으면 `knack doctor` 결과를 요약한다.
