@@ -7,7 +7,7 @@ description: 새 기능 추가나 기존 동작 변경을 정책 점검 → 설�
 
 정책이 확정되고 설계가 승인되기 전에는 소스 코드를 수정하지 않는다. 승인 뒤에는 완료 기준까지 멈추지 않고 진행한다.
 단계별 세부 절차는 필요한 단계만 읽는다: `knack show ref feature-workflow --section <번호>`.
-참조 문서(목차부터): `policy-checklist`, `conventions`, `readable-code`, `db-migration` → `knack show ref <이름> --toc`.
+참조 문서(목차부터): `policy-checklist`, `conventions`, `readable-code`, `db-migration`, `high-risk-gates` → `knack show ref <이름> --toc`.
 
 ## 규모
 | 규모 | 기준 | 진행 |
@@ -16,16 +16,17 @@ description: 새 기능 추가나 기존 동작 변경을 정책 점검 → 설�
 | 표준 | 그 외 | 모든 단계. `.design/<YYYYMMDD>-<slug>/`에 `DESIGN.md`·`SUMMARY.md` |
 
 애매하면 표준으로 한다. "설계 없이 바로 해줘"라고 하면 경량으로 하되 가정을 요약에 남긴다.
+**고위험**(스키마·데이터 보정, 금액·결제·정산, 동시성·멱등성, 메시지 재처리, 대규모 리팩터링)은 표준으로 하고 완료 게이트 `GATES.md`를 더한다 → `knack show ref high-risk-gates`.
 
 ## 흐름
 1. 요구사항: 목표·비목표, 테스트로 옮길 수 있는 성공 기준
 2. 정책 점검: 항목별 ✅ 명확(근거) / ❓ 불명확(질문) / ⚠️ 가정(기본값 제안)
 3. 코드 맥락: 가장 비슷한 기존 기능을 레퍼런스로 컨벤션 추출. `.onboarding/`이 있으면 필요한 섹션만
-4. 설계: `templates/DESIGN.md`. 스키마가 바뀌면 `db-migration` 적용
+4. 설계: `templates/DESIGN.md`. 스키마가 바뀌면 `db-migration` 적용. 고위험이면 `templates/GATES.md`도
 5. 게이트 (아래)
-6. 구현: 레퍼런스와 같은 구조, `readable-code` 기준, 설계 밖 리팩토링 없음
-7. 검증: 빌드, 신규·영향 테스트, 린트·포맷터
-8. 리뷰: 셀프 정리 후 `impl-review`로 독립 리뷰 (경량은 생략 가능)
+6. 구현: 레퍼런스와 같은 구조, `readable-code` 기준, 설계 밖 리팩토링 없음. 성공 기준 테스트는 먼저 실패를 확인하고 구현한다
+7. 검증: 빌드, 신규·영향 테스트, 린트·포맷터. 고위험이면 `knack gate run`
+8. 리뷰: 4단계 셀프 리뷰 후 `impl-review`로 독립 리뷰 (경량은 생략 가능)
 9. 요약: `templates/SUMMARY.md` + 대화 보고
 
 ## 5. 게이트 — 구현 시작 조건 (Definition of Ready)
@@ -33,6 +34,7 @@ description: 새 기능 추가나 기존 동작 변경을 정책 점검 → 설�
 - [ ] 모든 ❓에 답이 있거나 해당 가정이 승인됨
 - [ ] 설계가 명시적으로 승인됨 ("진행해" 등)
 - [ ] 성공 기준과 테스트 계획에 합의함
+- [ ] 고위험이면 `GATES.md`의 게이트와 실행될 명령(`knack gate status` 출력)이 승인됨
 
 충족 전에는 소스·설정·마이그레이션을 수정하지 않는다. 조회, 빌드, 기존 테스트 실행은 해도 된다.
 
@@ -43,4 +45,5 @@ description: 새 기능 추가나 기존 동작 변경을 정책 점검 → 설�
 
 ## 완료 기준
 성공 기준을 검증하는 테스트 통과 + 빌드·린트 통과 + 독립 리뷰의 🔴·🟠 반영 + `SUMMARY.md` 작성.
+고위험이면 보고 직전 `knack gate reverify`가 ALL MET이어야 한다. 포기(`ABANDON`)가 있으면 완료가 아니라 인계로 보고한다.
 실행하지 못한 검증은 이유와 함께 보고한다.

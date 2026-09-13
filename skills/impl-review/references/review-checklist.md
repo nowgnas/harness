@@ -12,13 +12,14 @@
 | Level | Criteria |
 |---|---|
 | 🔴 Blocker | Bug, data corruption or loss, security hole, unmet success criterion, broken backward compatibility |
-| 🟠 Major | Must fix before merge: missing tests on the core path, possible transaction or concurrency defect, large deviation from conventions, change outside the design scope |
+| 🟠 Major | Must fix before merge: missing tests on the core path, possible transaction or concurrency defect, large deviation from conventions, change outside the design scope, a completion gate that passes regardless of behavior |
 | 🟡 Minor | Readability, naming, small convention differences |
 | ⚪ Nit | Close to taste |
 | ❔ Question | A suspicion that needs confirmation |
 
 ## What to check
 1. **Design fit**: Is every success criterion met by code and tests? Are the policy decisions (DESIGN sections 2, 3, 9) reflected? Any change outside the design?
+   - Don't take the implementer's summary or commit messages as evidence. Compare each criterion against the code line by line; missing pieces and unrequested additions are both findings.
 2. **Correctness**: boundaries, null, empty collections, state-transition guards, exception paths, dates, time zones, money rounding
 3. **Transactions and concurrency**
    - Where the transaction boundary sits, self-invocation, readOnly
@@ -41,11 +42,16 @@
    - Debug code, unused code
 9. **Tests**
    - Are success criteria, core branches, and failure paths covered?
-   - Do test names describe scenarios? Tests mocked so heavily they verify nothing?
+   - Would each new test fail without the change? A test that passes on the old code, only asserts that a mock was called, or needs test-only methods added to production code is not coverage.
+   - Do test names describe scenarios?
    - Flaky elements (current time, ordering, sleep)
 10. **Operations**
     - Log levels and content, metrics
     - New config keys present in every environment's config file, feature flags
+11. **Completion gates** (only when a GATES.md is given)
+    - Every success criterion is covered by at least one gate
+    - No gate passes regardless of behavior: fixed output (`echo ok`), an EXPECT that also appears in failure output, a negative check with no positive control, a number copied from the request as its own proof
+    - Manual gates only where no command can decide the outcome; ABANDON entries surfaced, not silently dropped
 
 ## Output format (Korean labels)
 ````
@@ -79,4 +85,5 @@
 | 가독성 | |
 | 테스트 | |
 | 운영 | |
+| 완료 게이트 | 해당 없음 / 이상 없음 / #n |
 ````

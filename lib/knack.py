@@ -1578,6 +1578,16 @@ def main():
 
     sub.add_parser("persona-block")
 
+    s = sub.add_parser("gate", help="GATES.md 완료 게이트 확인·실행·재검증",
+                       epilog="예:\n  knack gate status .design/20260914-refund/GATES.md   # 실행 없이 상태·경고\n"
+                              "  knack gate run <GATES.md>        # 미충족 자동 게이트만 실행\n"
+                              "  knack gate reverify <GATES.md>   # 충족된 것까지 전부 다시 실행\n"
+                              "종료 코드: 0 ALL MET · 1 미충족 또는 포기 · 2 형식 오류",
+                       formatter_class=argparse.RawDescriptionHelpFormatter)
+    s.add_argument("action", choices=("status", "run", "reverify"))
+    s.add_argument("file", help="GATES.md 경로")
+    s.add_argument("--timeout", type=int, default=600, help="게이트당 제한 시간(초)")
+
     a, extra = p.parse_known_args()
     extra = [x for x in extra if x != "--"]
     if a.cmd == "run":
@@ -1590,6 +1600,7 @@ def main():
      "usage": lambda args: U.cmd_usage(args, usage_weights()),
      "bench": lambda args: __import__("bench").cmd_bench(args, sys.modules[__name__]),
      "persona": lambda args: __import__("persona").cmd_persona(args, sys.modules[__name__]),
+     "gate": lambda args: __import__("gate").cmd_gate(args),
      "persona-block": lambda args: cmd_persona_block(args)}[a.cmd](a)
 
 

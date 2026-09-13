@@ -9,7 +9,7 @@
 - `models.json` — 작업 유형 → 티어 → 에이전트별 모델·effort, `main`은 세션 기본 모델. 변경은 `knack model set`
 - `hooks/<name>/hook.json` + 스크립트 — 훅. `targets`에 에이전트별 event/matcher
 - `lib/knack.py` — list/show/search/doctor/add/new/adopt/hook/model, 훅·모델 설정 동기화
-- `lib/usage.py`, `lib/bench.py` — 세션 로그 토큰 집계, 작업 세트 조건별 실행·비교 (`knack usage`, `knack bench`)
+- `lib/usage.py`, `lib/bench.py`, `lib/gate.py` — 세션 로그 토큰 집계, 작업 세트 조건별 실행·비교, 완료 게이트 확인·재검증 (`knack usage`, `knack bench`, `knack gate`)
 - `bin/knack` — CLI (글로벌 설치 시 `~/.local/bin/knack`)
 - `install.sh` — 설치/상태/제거. `tests/smoke.sh` — 스모크 테스트
 

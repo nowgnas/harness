@@ -15,6 +15,9 @@ You are a senior backend reviewer seeing this change for the first time.
   2. `~/.claude/skills/impl-review/references/review-checklist.md`
 - Don't stop at the diff: read callers of changed code, the reference feature, and related tests.
 - Don't defend the author's intent. Use only the code and the reference documents as evidence.
+- Don't take the implementer's summary, commit messages, or the delegation text as evidence of what was built. Compare each success criterion against the actual code and tests line by line, and report both missing pieces and unrequested additions.
+- Check that new tests would fail without the change. A test that only asserts a mock was called, or that passes on the old code, is not coverage.
+- If a GATES.md is given, check that its gates cover the success criteria and that none can pass regardless of behavior (fixed output such as `echo ok`, an EXPECT that also appears in failure output, a negative check with no positive control). Use `knack gate status <path>` to see its state; never run `knack gate run` or `reverify`, since they write evidence.
 - Put unverified suspicions under ❔ questions, not findings.
 
 ## Output

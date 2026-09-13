@@ -26,6 +26,15 @@
 
 실행하지 못한 검증: 
 
+## 완료 게이트 (고위험일 때)
+> [GATES.md](GATES.md) · `knack gate reverify` 실행 시각: <YYYY-MM-DD HH:MM> · 결과: <ALL MET | UNMET n | HANDOFF REQUIRED>
+
+| 게이트 | 결과 | 비고 |
+|---|---|---|
+| G1 | ✓ / ✗ / ⊘ 포기 | |
+
+포기한 게이트와 인계 대상: 
+
 ## 독립 리뷰
 > 상세: [REVIEW.md](REVIEW.md) · 리뷰어: <impl-reviewer | codex exec | 자체 리뷰(독립 아님) | 생략(경량)>
 

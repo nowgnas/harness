@@ -45,17 +45,22 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 - 승인 뒤에는 로컬 빌드·테스트·린트 실행과 실패 수정을 묻지 않고, 완료 기준(테스트·린트 통과, 독립 리뷰 반영, 요약)까지 진행한 다음 한 번 보고합니다.
 - 작은 변경은 경량 모드로, 설계를 5줄로 요약해 확인받습니다. "설계 없이 바로 해줘"라고 하면 게이트를 건너뜁니다(가정은 요약에 남음).
 - 스키마가 바뀌면 DB 마이그레이션 가이드(expand → contract, 락, 롤백)가 설계에 적용됩니다.
+- 성공 기준 테스트는 구현 전에 실패하는 것부터 확인하고(Red → Green), 리뷰 전에 완성도 → 도메인 전문가의 눈 → 결함 사냥 → 정리 순서로 셀프 리뷰합니다.
+- **고위험 변경**(스키마·데이터 보정, 금액·결제·정산, 동시성·멱등성, 메시지 재처리, 대규모 리팩터링)은 설계 때 완료 게이트 `GATES.md`를 함께 승인받고, 완료 보고 직전에 `knack gate reverify`로 전부 다시 확인합니다. 규칙: `knack show ref high-risk-gates`
 
 ### bug-fix — 버그 수정
 - 원인을 입증하기 전에는 고치지 않습니다. 재현 테스트를 먼저 만듭니다.
 - 동작·정책 변경, API·스키마 변경, 데이터 보정, 3개 파일 초과, 추정 수정 중 하나라도 해당하면 승인 후 수정합니다.
 - 잘못 저장된 데이터가 있으면 조회 쿼리와 보정 스크립트 **초안**만 만듭니다. 실행은 사람이 합니다.
+- 가설은 한 번에 하나씩, 여러 컴포넌트를 거치면 경계마다 증거를 모읍니다. 수정을 되돌리면 재현 테스트가 다시 실패하는지까지 확인합니다.
+- 수정 시도가 세 번 실패하면 네 번째 수정 대신 구조 문제로 보고 방향을 정합니다. 고위험 영역이면 기능 구현과 같은 완료 게이트를 씁니다.
 
 ### impl-review — 독립 리뷰
 - 구현 맥락이 없는 리뷰어가 diff를 설계 문서, 레퍼런스 기능, 체크리스트와 대조합니다.
   - Claude: `impl-reviewer` 서브에이전트
   - Codex: `codex exec -s read-only` 새 세션
 - 심각도는 🔴 Blocker · 🟠 Major · 🟡 Minor · ⚪ Nit · ❔ 질문 다섯 단계입니다. 🔴·🟠는 반영하고, 리뷰는 최대 2라운드까지 합니다.
+- 리뷰어는 구현자의 요약을 믿지 않고 성공 기준을 코드와 한 줄씩 대조합니다. 구현자는 지적을 반영하기 전에 코드로 사실인지 확인하고, 틀리면 근거를 들어 반박합니다.
 
 ### knack-manage — 스킬·룰·훅 관리
 - 스킬을 설치할 때 에이전트 폴더에 바로 넣지 않고 하네스에 추가한 뒤 `knack install`로 연결합니다.
@@ -134,6 +139,7 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 
 ## 항상 적용되는 공통 규칙
 - 주장에는 근거(`path:line`)를 붙이고, 확인하지 못한 것은 `(추정)`으로 표시합니다.
+- 완료·통과를 말하기 전에 이번 턴에 검증 명령을 실행하고 출력을 확인합니다. 서브에이전트의 완료 보고도 diff와 테스트로 확인합니다.
 - 레포 컨벤션이 우선입니다. 주석은 "왜"에만 달고, 범위 밖 리팩토링은 하지 않습니다.
 - 시크릿 값은 출력하지 않고, 운영 환경에는 쓰지 않습니다. 스키마 변경은 마이그레이션 파일로만 합니다.
 - 전체 목록: `knack list rules`
@@ -142,7 +148,7 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 대상 레포 안에 만들어지며, 폴더마다 `.gitignore`(`*`)가 있어서 커밋되지 않습니다.
 ```
 .onboarding/   ONBOARDING.md, GLOSSARY.md, QUESTIONS.md, scan.md, flows/
-.design/       <날짜>-<slug>/DESIGN.md, SUMMARY.md, REVIEW.md
+.design/       <날짜>-<slug>/DESIGN.md, SUMMARY.md, REVIEW.md, GATES.md(고위험)
                <날짜>-bug-<slug>/BUGFIX.md
 ```
 
@@ -160,6 +166,7 @@ knack 은 백엔드 개발용 개인 에이전트 하네스입니다. 에이전�
 | `knack hook <enable\|disable> <이름>` | 훅 켜기·끄기 (적용은 `knack install`) |
 | `knack model [list\|get <작업>\|which "<요청>"\|set …]` | 작업 유형별 모델 조회·분류·변경 |
 | `knack run <작업\|auto> [--agent claude\|codex] [--print] -- "<프롬프트>"` | 작업에 맞는 모델로 에이전트 실행 (`--dry-run`: 명령만 출력) |
+| `knack gate <status\|run\|reverify> <GATES.md>` | 완료 게이트: 상태만(실행 안 함) · 미충족만 실행 · 전부 재실행. 종료 0 ALL MET · 1 미충족·포기 · 2 형식 오류 |
 | `knack persona [show\|init\|set\|import\|check\|enable\|disable\|path]` | 사용자 페르소나 조회·수정 (`persona import -` 로 표준입력) |
 | `knack usage [--since 7d] [--by session\|model\|day\|skill\|cwd] [--json]` | 세션 로그 기반 토큰 사용량 집계 |
 | `knack bench <init\|ab\|run [--baseline]\|compare\|list\|baseline>` | 작업 세트를 조건별로 실행·비교 (`knack bench --help`) |

@@ -540,5 +540,54 @@ check "호스트·컨트롤러·Minimal API·BackgroundService" 'contains "$TMP/
 check "DbContext·EF Migrations" 'contains "$TMP/dotnet.md" "EF Core DbContext" && contains "$TMP/dotnet.md" "EF Migrations"'
 check "시크릿 값 미노출 · stderr 없음" '! contains "$TMP/dotnet.md" "hunter2" && [ ! -s "$TMP/dotnet.err" ]'
 
+echo "▶ knack gate"
+K="$KNACK_DIR/bin/knack"
+GR="$TMP/gate-repo"; mkdir -p "$GR/.design/x"; git -C "$GR" init -q
+GF="$GR/.design/x/GATES.md"
+cat > "$GF" <<'EOF'
+# 완료 게이트
+- [ ] G1: 레포 루트에서 실행되고 성공 출력이 나온다
+  CHECK: test -f ok.flag && printf 'Tests: 3 passed\n'
+  EXPECT: /Tests: \d+ passed/
+  EVIDENCE: pending
+- [ ] G2: 팀과 배포 순서를 합의했다
+  EVIDENCE: pending
+
+```text
+- [ ] G9: 코드 블록 안의 게이트는 무시한다
+```
+EOF
+touch "$GR/ok.flag"
+rc=0; "$K" gate status "$GF" > "$TMP/g1.txt" 2>&1 || rc=$?
+check "gate status: 실행하지 않고 미충족 2 · 코드 블록 무시" '[ $rc -eq 1 ] && contains "$TMP/g1.txt" "UNMET 2" && ! contains "$TMP/g1.txt" "G9" && ! grep -q "auto-v1" "$GF"'
+rc=0; "$K" gate run "$GF" > "$TMP/g2.txt" 2>&1 || rc=$?
+check "gate run: 자동 게이트 통과·증거 기록, 수동 게이트는 미충족" '[ $rc -eq 1 ] && grep -q "^- \[x\] G1:" "$GF" && grep -q "result=pass" "$GF" && grep -q "^- \[ \] G2:" "$GF"'
+python3 -c 'import sys; p = sys.argv[1]; t = open(p, encoding="utf-8").read(); open(p, "w", encoding="utf-8").write(t.replace("- [ ] G2:", "- [x] G2:").replace("  EVIDENCE: pending", "  EVIDENCE: 팀 채널에서 합의"))' "$GF"
+rc=0; "$K" gate status "$GF" > "$TMP/g3.txt" 2>&1 || rc=$?
+check "gate status: 수동 증거까지 채우면 ALL MET (종료 0)" '[ $rc -eq 0 ] && contains "$TMP/g3.txt" "ALL MET"'
+rm "$GR/ok.flag"
+rc=0; "$K" gate status "$GF" > /dev/null 2>&1 || rc=$?; st=$rc
+rc=0; "$K" gate reverify "$GF" > "$TMP/g4.txt" 2>&1 || rc=$?
+check "gate reverify: 저장된 증거를 믿지 않고 다시 실행해 실패로 되돌림" '[ $st -eq 0 ] && [ $rc -eq 1 ] && grep -q "^- \[ \] G1:" "$GF" && grep -q "result=fail" "$GF"'
+touch "$GR/ok.flag"; "$K" gate run "$GF" > /dev/null 2>&1 || true
+python3 -c 'import sys; p = sys.argv[1]; t = open(p, encoding="utf-8").read(); open(p, "w", encoding="utf-8").write(t.replace("EXPECT: /Tests: \\d+ passed/", "EXPECT: Tests: 3 passed"))' "$GF"
+rc=0; "$K" gate status "$GF" > "$TMP/g5.txt" 2>&1 || rc=$?
+check "gate status: 게이트 정의를 바꾸면 이전 증거 무효" '[ $rc -eq 1 ] && contains "$TMP/g5.txt" "정의가 바뀜"'
+B="$GR/.design/x/bad.md"
+cat > "$B" <<'EOF'
+- [ ] G1: 종료 코드가 0이 아니면 기대 출력이 있어도 실패다
+  CHECK: echo 'all passed'; exit 1
+  EXPECT: all passed
+- [ ] G2: 항상 같은 출력을 내는 게이트
+  CHECK: echo ok
+  EXPECT: ok
+ABANDON: G2 결제 샌드박스가 없어 검증 불가 — 결제팀 인계
+EOF
+rc=0; "$K" gate run "$B" > "$TMP/g6.txt" 2>&1 || rc=$?
+check "gate run: exit≠0 은 실패 · 고정 출력 경고 · ABANDON 은 HANDOFF REQUIRED" '[ $rc -eq 1 ] && grep -q "^- \[ \] G1:" "$B" && grep -q "result=fail" "$B" && contains "$TMP/g6.txt" "HANDOFF REQUIRED" && grep -q "^  ! G2" "$TMP/g6.txt"'
+printf -- '- [ ] G1: 반쪽 게이트\n  CHECK: true\n' > "$GR/.design/x/half.md"
+rc=0; "$K" gate status "$GR/.design/x/half.md" > "$TMP/g7.txt" 2>&1 || rc=$?
+check "gate: CHECK 만 있고 EXPECT 가 없으면 형식 오류 (종료 2)" '[ $rc -eq 2 ] && contains "$TMP/g7.txt" "형식 오류"'
+
 echo
 if [ $FAIL -eq 0 ]; then echo "PASS"; else echo "FAIL: ${FAIL}건"; exit 1; fi

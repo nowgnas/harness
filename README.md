@@ -39,9 +39,9 @@ knack help                      # 사용법
 |---|---|---|
 | `repo-onboarding` | 처음 보는 레포 파악 → `.onboarding/` 문서 | "이 레포 파악해줘" |
 | `trace-flow` | 엔드포인트·메시지·배치 흐름 추적 | "POST /api/orders 흐름 따라가줘" |
-| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 독립 리뷰 → 요약 | "주문 취소 API 추가해줘" |
-| `bug-fix` | 재현 → 원인 입증 → 수정 계획 → 최소 수정 → 영향 데이터 점검 | "이 스택트레이스 원인 찾아서 고쳐줘" |
-| `impl-review` | 구현 맥락이 없는 리뷰어의 독립 리뷰 | "머지 전에 내 변경사항 리뷰해줘" |
+| `feature-implementation` | 정책 점검 → 설계 → **승인 후** 구현 → 검증 → 독립 리뷰 → 요약. 고위험이면 완료 게이트 | "주문 취소 API 추가해줘" |
+| `bug-fix` | 재현 → 원인 입증 → 수정 계획 → 최소 수정 → 되돌림 확인 → 영향 데이터 점검 | "이 스택트레이스 원인 찾아서 고쳐줘" |
+| `impl-review` | 구현 맥락이 없는 리뷰어가 요약 대신 코드로 성공 기준을 대조 | "머지 전에 내 변경사항 리뷰해줘" |
 | `knack-manage` | 스킬·룰·훅 조회·추가·설치 | "이 스킬 설치해줘" |
 | `knack-help` | 사용법 안내 ([USAGE.md](skills/knack-help/USAGE.md)) | "하네스 사용법 알려줘" |
 
@@ -70,6 +70,17 @@ knack hook disable guard-agent-config                                   # 훅 �
 knack install --dry-run && knack install                              # 적용
 ```
 
+## 완료 게이트 (고위험 변경)
+
+결제·정산, 마이그레이션, 동시성, 메시지 재처리처럼 "테스트 몇 개 통과"로 완료를 판단하기 어려운 변경은 설계 때 `GATES.md`에 관찰 가능한 결과를 명령(`CHECK:`)과 기대 출력(`EXPECT:`)으로 적어 승인받고, 완료 보고 직전에 전부 다시 실행합니다.
+형식은 [unlazy](https://github.com/Leonxlnx/unlazy)(MIT)의 게이트 형식 일부를 가져왔습니다. 규칙은 `knack show ref high-risk-gates`.
+
+```bash
+knack gate status .design/<slug>/GATES.md     # 실행 없이 상태·경고
+knack gate run .design/<slug>/GATES.md        # 미충족 자동 게이트만 실행, EVIDENCE 기록
+knack gate reverify .design/<slug>/GATES.md   # 충족된 것까지 전부 다시 실행 (보고 직전)
+```
+
 ## 측정
 
 ```bash
@@ -90,6 +101,7 @@ hooks/<name>/           훅 정의(hook.json)와 스크립트
 lib/knack.py          조회·관리·훅·모델 동기화 (python3 표준 라이브러리)
 lib/usage.py            세션 로그 토큰 집계 (knack usage)
 lib/bench.py            작업 세트 조건별 실행·비교 (knack bench)
+lib/gate.py             완료 게이트 확인·실행·재검증 (knack gate)
 bench/                  벤치 작업 예시
 bin/knack             CLI
 install.sh              설치/상태/제거
