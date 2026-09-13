@@ -1,7 +1,7 @@
 """같은 작업 세트를 조건별(하네스 미적용 vs 적용)로 실행해 토큰·결과를 기록하고 비교한다.
 
 작업마다 대상 레포의 git worktree 를 만들고 비대화 모드(claude -p / codex exec)로 실행한다.
-baseline 조건은 전역 설정을 건드리지 않고, 하네스 산출물만 뺀 HOME 미러(~/.harness-bench/baseline-home)로
+baseline 조건은 전역 설정을 건드리지 않고, 하네스 산출물만 뺀 HOME 미러(~/.knack-bench/baseline-home)로
 에이전트를 띄운다. 미러의 나머지 항목(인증, 프록시 설정, 캐시, 세션 로그 폴더)은 원본 링크라 조건이 같다.
 """
 import json
@@ -17,7 +17,16 @@ from pathlib import Path
 
 import usage as U
 
-BENCH_DIR = Path(os.environ.get("HARNESS_BENCH_DIR") or Path.home() / ".harness-bench")
+def _bench_dir():
+    """KNACK_BENCH_DIR > ~/.knack-bench. 개명 전 ~/.harness-bench 만 있으면 그것을 쓴다(결과 보존)."""
+    env = os.environ.get("KNACK_BENCH_DIR") or os.environ.get("HARNESS_BENCH_DIR")
+    if env:
+        return Path(env)
+    new_dir, old_dir = Path.home() / ".knack-bench", Path.home() / ".harness-bench"
+    return old_dir if old_dir.is_dir() and not new_dir.is_dir() else new_dir
+
+
+BENCH_DIR = _bench_dir()
 BASELINE_HOME = BENCH_DIR / "baseline-home"
 DEFAULT_TASKS = BENCH_DIR / "tasks.json"
 EXAMPLE = Path(__file__).resolve().parent.parent / "bench" / "tasks.example.json"
@@ -50,13 +59,13 @@ def init(a, _h):
         fail(f"이미 있음: {dst}", 2)
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(EXAMPLE, dst)
-    print(f"생성: {U.pretty(dst)}\n다음: repo·tasks·check 를 채운 뒤 harness bench ab --repeat 2 --dry-run")
+    print(f"생성: {U.pretty(dst)}\n다음: repo·tasks·check 를 채운 뒤 knack bench ab --repeat 2 --dry-run")
 
 
 def load_tasks(path):
     p = Path(path).expanduser() if path else DEFAULT_TASKS
     if not p.is_file():
-        fail(f"작업 파일이 없습니다: {U.pretty(p)}\n먼저 harness bench init 으로 만들고 repo·tasks 를 채우세요.")
+        fail(f"작업 파일이 없습니다: {U.pretty(p)}\n먼저 knack bench init 으로 만들고 repo·tasks 를 채우세요.")
     try:
         spec = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -72,7 +81,7 @@ def load_tasks(path):
     return spec, repo, tasks
 
 
-def harness_state(h, home=None, codex_home=None):
+def knack_state(h, home=None, codex_home=None):
     """지시 파일에 하네스 블록이 있는지로 적용 여부를 판단한다."""
     files = {"claude": Path(home) / ".claude" / "CLAUDE.md" if home else h.RULE_FILES["claude"],
              "codex": Path(codex_home) / "AGENTS.md" if codex_home else h.RULE_FILES["codex"]}
@@ -138,7 +147,7 @@ def _filter_dir(h, report, generated=False):
         dst.mkdir()
         skipped = []
         for e in sorted(src.iterdir()):
-            ours = h.in_harness(e) or (e.is_symlink() and os.readlink(e).startswith(str(h.HARNESS)))
+            ours = h.in_knack(e) or (e.is_symlink() and os.readlink(e).startswith(str(h.KNACK)))
             if not ours and generated and e.is_file() and not e.is_symlink():
                 try:
                     ours = h.GEN_MARK in e.read_text(encoding="utf-8")[:4000]
@@ -171,7 +180,7 @@ def build_baseline_home(h):
         "skills": _filter_dir(h, report), "agents": _filter_dir(h, report, generated=True)})
     _mirror(real / ".agents", base / ".agents", {"skills": _filter_dir(h, report)})
     _mirror(h.CODEX_HOME, base / ".codex", {
-        "AGENTS.md": _strip_block(h, report, *md), "hooks.json": _strip_hooks(h, report), "harness": False,
+        "AGENTS.md": _strip_block(h, report, *md), "hooks.json": _strip_hooks(h, report), "knack": False,
         "config.toml": _strip_block(h, report, h.TOML_START, h.TOML_END, "서브에이전트 역할 블록")})
     return {"HOME": str(base), "CODEX_HOME": str(base / ".codex")}, report
 
@@ -290,7 +299,7 @@ def run(a, h):
     agent = a.agent or spec.get("agent") or "claude"
     ref = spec.get("ref") or "HEAD"
     cfg, weights = h.load_models(), h.usage_weights()
-    rev = git("rev-parse", "--short", "HEAD", cwd=h.HARNESS).stdout.strip()
+    rev = git("rev-parse", "--short", "HEAD", cwd=h.KNACK).stdout.strip()
     out_file = results_path(a.label)
     mode, env, env_note = ("baseline" if a.baseline else "current"), None, ""
     if a.baseline:
@@ -300,10 +309,10 @@ def run(a, h):
             extra_env, report = build_baseline_home(h)
             env = {**os.environ, **extra_env}
             env.pop("CLAUDE_CONFIG_DIR", None)
-            state = harness_state(h, extra_env["HOME"], extra_env["CODEX_HOME"])
+            state = knack_state(h, extra_env["HOME"], extra_env["CODEX_HOME"])
             print("baseline: 하네스만 뺀 HOME 미러로 실행 — " + ("; ".join(report) or "제외할 하네스 항목 없음"))
     else:
-        state = harness_state(h)
+        state = knack_state(h)
     if not a.dry_run:
         out_file.parent.mkdir(parents=True, exist_ok=True)
         print(f"조건 '{a.label}' ({mode}): 하네스 {state_label(state)} · 에이전트 {agent} · 결과 {U.pretty(out_file)}")
@@ -328,7 +337,7 @@ def run(a, h):
                 proc = subprocess.run(cmd, cwd=wt, env=env, capture_output=True, text=True, timeout=a.timeout)
                 stdout, rc = proc.stdout, proc.returncode
             except FileNotFoundError:
-                fail(f"에이전트 실행 명령을 찾을 수 없습니다: {cmd[0]} (--agent-cmd 또는 HARNESS_{agent.upper()}_CMD 로 지정)")
+                fail(f"에이전트 실행 명령을 찾을 수 없습니다: {cmd[0]} (--agent-cmd 또는 KNACK_{agent.upper()}_CMD 로 지정)")
             except subprocess.TimeoutExpired as e:
                 stdout, rc = _text(e.stdout), None
             duration = round(time.time() - started, 1)
@@ -347,7 +356,7 @@ def run(a, h):
                     check_ok = False
             status = git("status", "--porcelain", cwd=wt).stdout.splitlines()
             rec = {"label": a.label, "mode": mode, "task": t["id"], "type": t.get("type"), "rep": i, "agent": agent,
-                   "model": model, "effort": effort, "harness": state, "harness_rev": rev,
+                   "model": model, "effort": effort, "knack": state, "knack_rev": rev,
                    "time": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                    "exit_code": rc, "timed_out": rc is None, "is_error": info["is_error"], "turns": info["turns"],
                    "cost_usd": info["cost_usd"], "duration_s": duration, "check_ok": check_ok,
@@ -366,11 +375,11 @@ def run(a, h):
 
 
 def ab(a, h):
-    """baseline(하네스 제외)과 harness(현재 설정)를 연달아 실행하고 비교한다."""
-    if not a.dry_run and not any(harness_state(h).values()):
-        fail("하네스가 적용되지 않은 상태입니다. harness install 후 다시 실행하세요.")
+    """baseline(하네스 제외)과 knack(현재 설정)를 연달아 실행하고 비교한다."""
+    if not a.dry_run and not any(knack_state(h).values()):
+        fail("하네스가 적용되지 않은 상태입니다. knack install 후 다시 실행하세요.")
     prefix = a.prefix or datetime.now().strftime("ab-%Y%m%d-%H%M")
-    labels = (f"{prefix}-baseline", f"{prefix}-harness")
+    labels = (f"{prefix}-baseline", f"{prefix}-knack")
     for label, baseline in zip(labels, (True, False)):
         print(f"\n=== {label} ===")
         a.label, a.baseline = label, baseline
@@ -387,7 +396,7 @@ def ab(a, h):
 def load_results(label):
     f = results_path(label)
     if not f.is_file():
-        fail(f"결과 없음: {label} (harness bench list)")
+        fail(f"결과 없음: {label} (knack bench list)")
     return [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
@@ -423,8 +432,8 @@ def compare(a, _h):
     if a.json:
         print(json.dumps({"a": a.a, "b": a.b, "tasks": table}, ensure_ascii=False, indent=1))
         return
-    print(f"A = {a.a} (하네스 {state_label(rows_a[-1].get('harness'))}) · B = {a.b} (하네스 {state_label(rows_b[-1].get('harness'))})")
-    if rows_a[-1].get("harness") == rows_b[-1].get("harness"):
+    print(f"A = {a.a} (하네스 {state_label(rows_a[-1].get('knack'))}) · B = {a.b} (하네스 {state_label(rows_b[-1].get('knack'))})")
+    if rows_a[-1].get("knack") == rows_b[-1].get("knack"):
         print("  ⚠ 두 조건의 하네스 적용 상태가 같습니다.")
     print(f"{'task':<16} {'A tok':>8} {'B tok':>8} {'Δtok':>6} | {'A pass':>6} {'B pass':>6} | "
           f"{'A turn':>6} {'B turn':>6} | {'A sec':>6} {'B sec':>6} | {'n':>5}")
@@ -443,10 +452,10 @@ def list_labels(_a, _h):
     root = BENCH_DIR / "results"
     files = sorted(root.glob("*.jsonl")) if root.is_dir() else []
     if not files:
-        print("벤치 결과가 없습니다. harness bench init → harness bench ab --repeat 2")
+        print("벤치 결과가 없습니다. knack bench init → knack bench ab --repeat 2")
         return
     for f in files:
         rows = [json.loads(l) for l in f.read_text(encoding="utf-8").splitlines() if l.strip()]
         last = rows[-1] if rows else {}
         print(f"  {f.stem:<28} 실행 {len(rows):>3} · 작업 {len({r['task'] for r in rows})} · {last.get('agent', '-')} · "
-              f"{last.get('mode', '-')} · 하네스 {state_label(last.get('harness'))} · {last.get('time', '-')}")
+              f"{last.get('mode', '-')} · 하네스 {state_label(last.get('knack'))} · {last.get('time', '-')}")

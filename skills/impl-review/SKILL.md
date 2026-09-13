@@ -15,7 +15,7 @@ description: 완성된 변경(diff)을 구현 맥락이 없는 리뷰어가 설�
 | 변경 범위 | `git diff <base>...HEAD` + 작업 트리 변경. base는 DESIGN.md의 기준 커밋, 없으면 기본 브랜치와의 merge-base |
 | 기준 문서 | `.design/<slug>/DESIGN.md` 또는 `BUGFIX.md`. 없으면 사용자 요청을 성공 기준 3~5줄로 정리 |
 | 레퍼런스 기능 | DESIGN.md 4절의 경로 |
-| 체크리스트 | `references/review-checklist.md`의 **절대 경로** (`harness show ref review-checklist --path`) |
+| 체크리스트 | `references/review-checklist.md`의 **절대 경로** (`knack show ref review-checklist --path`) |
 
 구현 중 고민이나 "이렇게 한 이유"는 넘기지 않는다. 설계 결정은 DESIGN.md 결정 이력으로 충분하다.
 
@@ -23,7 +23,7 @@ description: 완성된 변경(diff)을 구현 맥락이 없는 리뷰어가 설�
 | 환경 | 방법 |
 |---|---|
 | Claude Code | `impl-reviewer` 서브에이전트에 위임 (모델은 `models.json`의 review 작업) |
-| Codex | 새 세션: `codex exec -s read-only -C <레포 루트> $(harness model get review --agent codex --format flags) "<리뷰 프롬프트>"` |
+| Codex | 새 세션: `codex exec -s read-only -C <레포 루트> $(knack model get review --agent codex --format flags) "<리뷰 프롬프트>"` |
 | 둘 다 불가 | 체크리스트로 직접 리뷰하고 결과에 **"독립 리뷰 아님"** 명시 |
 
 리뷰 프롬프트 (값을 채워서 그대로 쓴다):

@@ -1,6 +1,6 @@
 # 온보딩 단계별 절차
 
-repo-onboarding 스킬의 세부 절차. `harness show ref onboarding-phases --section <번호>`로 필요한 단계만 읽는다.
+repo-onboarding 스킬의 세부 절차. `knack show ref onboarding-phases --section <번호>`로 필요한 단계만 읽는다.
 
 ## 0. 지문 채취
 - 스크립트 출력(`scan.md`)으로 스택을 판별하고, 해당 스택 참조 문서를 필요한 섹션만 읽는다.

@@ -6,7 +6,7 @@ description: 버그를 재현 → 원인 입증 → 최소 수정 → 회귀 테
 # Bug Fix
 
 원인을 입증하기 전에는 고치지 않는다. 증상만 가리는 수정(널 체크, 예외 삼키기, 재시도 추가)은 그것이 실제 원인에 대한 해법일 때만 한다.
-단계별 세부 절차: `harness show ref bugfix-workflow --section <번호>`. 흔한 원인: `harness show ref common-causes --toc`.
+단계별 세부 절차: `knack show ref bugfix-workflow --section <번호>`. 흔한 원인: `knack show ref common-causes --toc`.
 
 ## 흐름
 1. 증상 정리: 기대/실제 동작, 에러, 환경, 빈도, 영향. 운영 장애가 진행 중이면 완화(롤백, 플래그)를 먼저 제안한다.
@@ -24,7 +24,7 @@ description: 버그를 재현 → 원인 입증 → 최소 수정 → 회귀 테
 - 동작이나 정책이 바뀐다 / API 계약이나 DB 스키마가 바뀐다 / 데이터 보정이 필요하다
 - 수정 범위가 3개 파일을 넘는다 / 원인을 확정하지 못해 추정으로 수정한다
 
-정책 판단이 필요하면 `harness show ref policy-checklist`를 쓴다.
+정책 판단이 필요하면 `knack show ref policy-checklist`를 쓴다.
 
 ## 진행 방식과 완료 기준
 - **묻지 않고 한다**: 재현 테스트 작성, 로컬 빌드·테스트 실행과 재실행, 로컬 DB·Testcontainers 사용.

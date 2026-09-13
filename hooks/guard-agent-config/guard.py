@@ -10,7 +10,7 @@ import re
 import sys
 
 HOME_FORMS = {os.path.expanduser("~"), os.path.realpath(os.path.expanduser("~"))}
-HARNESS = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", ".."))
+KNACK = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", ".."))
 PROTECTED = (".claude/skills", ".claude/agents", ".agents/skills", ".codex/skills")
 PREFIXES = sorted({h + "/" for h in HOME_FORMS} | {"~/", "$HOME/", "${HOME}/"})
 
@@ -19,14 +19,14 @@ WRITE_CMD = re.compile(
 REDIRECT = re.compile(r">")
 HARMLESS_REDIRECT = re.compile(r"\d*>\s*/dev/null|\d*>&\d")
 SKILLS_CLI = re.compile(r"\bskills?\s+(add|install)\b")
-HARNESS_CMD = re.compile(r"(^|[\s;&|(])(harness\s|\S*/install\.sh\b)")
+KNACK_CMD = re.compile(r"(^|[\s;&|(])(knack\s|\S*/install\.sh\b)")
 PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", re.M)
 
 GUIDE = ("하네스 관리 대상 경로입니다: {path}\n"
          "스킬·서브에이전트는 에이전트 설정 폴더에 직접 설치하지 않고 하네스에 추가합니다.\n"
-         "- 현재 목록·중복 확인: harness list --all\n"
-         "- 외부 스킬 추가: harness add skill <경로|git URL> → harness install\n"
-         "- 새로 만들기: harness new skill <이름>\n"
+         "- 현재 목록·중복 확인: knack list --all\n"
+         "- 외부 스킬 추가: knack add skill <경로|git URL> → knack install\n"
+         "- 새로 만들기: knack new skill <이름>\n"
          "하네스 밖 설치가 꼭 필요하면 사용자가 직접 실행하도록 안내하세요.")
 
 
@@ -48,7 +48,7 @@ def protected_file(path, cwd):
     if not os.path.isabs(full):
         full = os.path.join(cwd or os.getcwd(), full)
     real = os.path.realpath(full)
-    if inside(real, HARNESS):
+    if inside(real, KNACK):
         return None
     for home in HOME_FORMS:
         for rel in PROTECTED:
@@ -72,7 +72,7 @@ def protected_in_command(cmd, cwd):
 
 
 def check_command(cmd, cwd):
-    if HARNESS_CMD.search(cmd):
+    if KNACK_CMD.search(cmd):
         return
     if SKILLS_CLI.search(cmd):
         deny("skills add/install 명령 (에이전트 설정 폴더에 설치됨)")

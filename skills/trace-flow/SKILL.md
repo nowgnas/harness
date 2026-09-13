@@ -7,7 +7,7 @@ description: API·메시지·배치 하나의 실행 흐름을 진입점부터 D
 
 하나의 실행 흐름을 진입점부터 응답·종료까지 추적해 시퀀스 문서로 만든다.
 입력은 `METHOD /path`, 토픽·큐 이름, 배치 잡, `Class.method`. 모호하면 후보를 찾아 제시하고 고르게 한다.
-스택별 세부(Spring, .NET): `harness show ref tracing --section <번호>`.
+스택별 세부(Spring, .NET): `knack show ref tracing --section <번호>`.
 
 ## 단계
 1. 진입점 찾기: 라우팅 결합 규칙, 설정값으로 된 토픽 이름까지

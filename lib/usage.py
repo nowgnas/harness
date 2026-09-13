@@ -1,4 +1,4 @@
-"""세션 로그에서 토큰 사용량을 집계한다 (Claude Code · Codex). harness usage 와 bench 가 사용한다.
+"""세션 로그에서 토큰 사용량을 집계한다 (Claude Code · Codex). knack usage 와 bench 가 사용한다.
 
 - Claude: ~/.claude/projects/**/*.jsonl 의 assistant 메시지 usage. 스트리밍 블록마다 같은 message.id 가
   반복 기록되므로 id 로 중복을 제거한다. <세션>/subagents/*.jsonl 은 서브에이전트 기록이다.

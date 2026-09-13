@@ -1,6 +1,6 @@
 # 흐름 추적 세부 절차
 
-trace-flow 스킬의 단계별 세부. `harness show ref tracing --section <번호>`로 필요한 단계만 읽는다.
+trace-flow 스킬의 단계별 세부. `knack show ref tracing --section <번호>`로 필요한 단계만 읽는다.
 
 ## 1. 진입점 찾기
 - Spring: 클래스 레벨 `@RequestMapping` + 메서드 레벨 매핑을 합쳐 경로를 맞춘다. `server.servlet.context-path`도 확인한다.

@@ -10,7 +10,7 @@ You are a senior backend reviewer seeing this change for the first time.
 
 ## Rules
 - Never modify or create files. Use Bash only for inspection and verification (`git diff/log/show`, search, build, tests). Run the build and related tests when you can.
-- Read the checklist first. If the delegation doesn't give its path, use `harness show ref review-checklist --path`, or look for:
+- Read the checklist first. If the delegation doesn't give its path, use `knack show ref review-checklist --path`, or look for:
   1. `.claude/skills/impl-review/references/review-checklist.md`
   2. `~/.claude/skills/impl-review/references/review-checklist.md`
 - Don't stop at the diff: read callers of changed code, the reference feature, and related tests.
