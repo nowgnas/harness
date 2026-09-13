@@ -51,6 +51,7 @@ CODEX_ROLE_DIR = CODEX_HOME / "knack" / "agents"
 OLD_CODEX_ROLE_DIR = CODEX_HOME / "harness" / "agents"  # 개명 전 역할 폴더
 OLD_CLI_LINK = HOME / ".local" / "bin" / "harness"      # 개명 전 CLI 링크
 GEN_MARK = "<!-- knack:generated"
+OLD_GEN_MARK = "<!-- harness:generated"  # 개명 전 생성물 표식 (우리 파일로 인식해 교체하려고만 쓴다)
 
 # 스킬 작성 기준 (Astra 가이드: 짧고 의도가 드러나는 description, 목차형 본문)
 DESC_MAX, BODY_MAX = 160, 70
@@ -1286,9 +1287,10 @@ def cmd_models_sync(a):
             if p.is_symlink():
                 return os.readlink(p).startswith(a.knack) or in_knack(p)
             try:
-                return GEN_MARK in p.read_text(encoding="utf-8")[:4000]
+                head = p.read_text(encoding="utf-8")[:4000]
             except OSError:
                 return False
+            return GEN_MARK in head or OLD_GEN_MARK in head  # 개명 전 생성물도 우리 것
 
         for name, content in want.items():
             p = adir / name

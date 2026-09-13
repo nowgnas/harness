@@ -201,6 +201,16 @@ assert any(c==\"echo mine\" for c in cmds), cmds
 assert not any(\"--harness-hook\" in c for c in cmds), cmds
 assert any(\"--knack-hook guard-agent-config\" in c for c in cmds), cmds"'
 check "구 Codex 역할 폴더 제거" '[ ! -d "$MHOME/.codex/harness/agents" ]'
+# 구 생성물 표식(harness:generated)을 못 알아보면 서브에이전트가 SKIP 되어 install 로 고쳐지지 않는다
+MHOME2="$TMP/mig2"; mkdir -p "$MHOME2/.claude/agents" "$MHOME2/.codex"
+for a in git-ops impl-reviewer repo-explorer; do
+  printf -- '---\nname: %s\ndescription: x\nmodel: sonnet\n---\n<!-- harness:generated from agents/%s.md · 직접 수정 금지 -->\n옛 본문\n' "$a" "$a" > "$MHOME2/.claude/agents/$a.md"
+done
+printf -- '---\nname: my-agent\ndescription: 내가 만든 것\n---\n내 본문\n' > "$MHOME2/.claude/agents/my-agent.md"
+HOME="$MHOME2" CODEX_HOME="$MHOME2/.codex" "$INSTALL" --global --agents claude,codex > "$TMP/mig2.txt" 2>&1
+check "구 생성물 표식 서브에이전트 교체 (SKIP 되지 않음)" '! grep -q "SKIP" "$TMP/mig2.txt" && grep -q "UPDATE .*git-ops.md" "$TMP/mig2.txt" && grep -q "knack:generated" "$MHOME2/.claude/agents/git-ops.md"'
+check "사용자가 만든 서브에이전트는 보존" 'grep -q "내 본문" "$MHOME2/.claude/agents/my-agent.md"'
+check "마이그레이션 후 doctor 설치 상태 깨끗" 'HOME="$MHOME2" CODEX_HOME="$MHOME2/.codex" python3 "$KNACK_DIR/lib/knack.py" doctor 2>&1 | grep -q "모든 항목 설치됨"'
 check "마이그레이션 후 status 전부 OK" 'HOME="$MHOME" CODEX_HOME="$MHOME/.codex" "$INSTALL" --status --global --agents claude,codex 2>&1 | grep -vqE "^  (STALE|BROKEN)"'
 
 echo "▶ 페르소나"
