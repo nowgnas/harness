@@ -6,8 +6,8 @@ description: 새 기능 추가나 기존 동작 변경을 정책 점검 → 설�
 # Feature Implementation
 
 정책이 확정되고 설계가 승인되기 전에는 소스 코드를 수정하지 않는다. 승인 뒤에는 완료 기준까지 멈추지 않고 진행한다.
-단계별 세부 절차는 필요한 단계만 읽는다: `harness show ref feature-workflow --section <번호>`.
-참조 문서(목차부터): `policy-checklist`, `conventions`, `readable-code`, `db-migration` → `harness show ref <이름> --toc`.
+단계별 세부 절차는 필요한 단계만 읽는다: `knack show ref feature-workflow --section <번호>`.
+참조 문서(목차부터): `policy-checklist`, `conventions`, `readable-code`, `db-migration` → `knack show ref <이름> --toc`.
 
 ## 규모
 | 규모 | 기준 | 진행 |

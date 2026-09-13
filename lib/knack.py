@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""harness 조회·관리 도구. bin/harness 가 호출한다 (python3 표준 라이브러리만 사용).
+"""knack 조회·관리 도구. bin/knack 가 호출한다 (python3 표준 라이브러리만 사용).
 
 에이전트가 하네스 파일을 통째로 읽지 않도록 짧은 출력을 기본으로 한다.
 list → show --toc → show --section 순서로 필요한 부분만 조회하게 하는 것이 목적이다.
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import usage as U
 
-HARNESS = Path(__file__).resolve().parent.parent
+KNACK = Path(__file__).resolve().parent.parent
 HOME = Path.home()
 CODEX_HOME = Path(os.environ.get("CODEX_HOME") or HOME / ".codex")
 CLAUDE = HOME / ".claude"
@@ -33,18 +33,24 @@ EXTERNAL_SKILL_DIRS = [CLAUDE / "skills", HOME / ".agents" / "skills", CODEX_HOM
 TYPES = ("skills", "rules", "agents", "hooks", "plugins", "mcp")
 HOOK_EVENTS = ("PreToolUse", "PostToolUse", "PermissionRequest", "UserPromptSubmit",
                "SessionStart", "Stop", "SubagentStart", "SubagentStop", "PreCompact", "PostCompact", "Notification")
-HOOK_MARK = "--harness-hook"
-BLOCK_START, BLOCK_END = "<!-- harness:start", "<!-- harness:end -->"
-TOML_START, TOML_END = "# harness:start", "# harness:end"
+HOOK_MARK = "--knack-hook"
+# 개명(harness → knack) 전 표식·마커. 이미 설치된 머신에서 구 항목을 걷어내려고만 쓴다.
+# 쓰는 곳: managed_name(구 훅 인식), OLD_BLOCKS(구 지시 블록 제거), old_paths(구 경로 정리).
+OLD_HOOK_MARK = "--harness-hook"
+BLOCK_START, BLOCK_END = "<!-- knack:start", "<!-- knack:end -->"
+TOML_START, TOML_END = "# knack:start", "# knack:end"
+OLD_BLOCKS = (("<!-- harness:start", "<!-- harness:end -->"), ("# harness:start", "# harness:end"))
 AGENTS_SUPPORTED = ("claude", "codex")
 
-MODELS = HARNESS / "models.json"
+MODELS = KNACK / "models.json"
 TIER_RANK = {"fast": 0, "standard": 1, "deep": 2}
 CLAUDE_MODELS = {"opus", "sonnet", "haiku", "inherit", "opusplan", "opus[1m]", "sonnet[1m]"}
 EFFORTS = ("low", "medium", "high", "xhigh", "max", "ultra")
 CODEX_CONFIG = CODEX_HOME / "config.toml"
-CODEX_ROLE_DIR = CODEX_HOME / "harness" / "agents"
-GEN_MARK = "<!-- harness:generated"
+CODEX_ROLE_DIR = CODEX_HOME / "knack" / "agents"
+OLD_CODEX_ROLE_DIR = CODEX_HOME / "harness" / "agents"  # 개명 전 역할 폴더
+OLD_CLI_LINK = HOME / ".local" / "bin" / "harness"      # 개명 전 CLI 링크
+GEN_MARK = "<!-- knack:generated"
 
 # 스킬 작성 기준 (Astra 가이드: 짧고 의도가 드러나는 description, 목차형 본문)
 DESC_MAX, BODY_MAX = 160, 70
@@ -60,7 +66,7 @@ def pretty(p):
 
 
 def rel(p):
-    return str(Path(p).relative_to(HARNESS))
+    return str(Path(p).relative_to(KNACK))
 
 
 def fail(msg, code=1):
@@ -99,8 +105,8 @@ def linked(link, target):
     return link.is_symlink() and os.path.realpath(link) == os.path.realpath(target)
 
 
-def in_harness(p):
-    return os.path.realpath(p).startswith(str(HARNESS) + os.sep)
+def in_knack(p):
+    return os.path.realpath(p).startswith(str(KNACK) + os.sep)
 
 
 def mark(v):
@@ -120,35 +126,35 @@ def backup(path, backup_dir):
 
 
 # ── 하네스 항목 ───────────────────────────────
-def harness_skills():
+def knack_skills():
     out = []
-    for d in sorted((HARNESS / "skills").iterdir()):
+    for d in sorted((KNACK / "skills").iterdir()):
         if (d / "SKILL.md").is_file():
             meta, _ = read_md(d / "SKILL.md")
             out.append({"name": d.name, "meta": meta, "desc": meta.get("description", ""), "path": d / "SKILL.md"})
     return out
 
 
-def harness_rules():
+def knack_rules():
     out = []
-    for f in sorted((HARNESS / "rules").glob("*.md")):
+    for f in sorted((KNACK / "rules").glob("*.md")):
         meta, body = read_md(f)
         out.append({"name": meta.get("name", f.stem), "meta": meta, "desc": meta.get("description", ""),
                     "load": meta.get("load", "always"), "when": meta.get("when", ""), "path": f, "body": body})
     return out
 
 
-def harness_agents():
+def knack_agents():
     out = []
-    for f in sorted((HARNESS / "agents").glob("*.md")):
+    for f in sorted((KNACK / "agents").glob("*.md")):
         meta, _ = read_md(f)
         out.append({"name": meta.get("name", f.stem), "meta": meta, "desc": meta.get("description", ""), "path": f})
     return out
 
 
-def harness_hooks():
+def knack_hooks():
     out = []
-    root = HARNESS / "hooks"
+    root = KNACK / "hooks"
     for d in sorted(root.iterdir()) if root.is_dir() else []:
         f = d / "hook.json"
         if f.is_file():
@@ -160,7 +166,7 @@ def harness_hooks():
 
 # ── 설치 상태 ─────────────────────────────────
 def block_text(path):
-    """(harness 블록 내용 | None, 블록 밖 내용)"""
+    """(knack 블록 내용 | None, 블록 밖 내용)"""
     try:
         text = Path(path).read_text(encoding="utf-8")
     except OSError:
@@ -171,7 +177,7 @@ def block_text(path):
 
 
 def skill_installed(name):
-    return {a: linked(d / name, HARNESS / "skills" / name) for a, d in SKILL_DIRS.items()}
+    return {a: linked(d / name, KNACK / "skills" / name) for a, d in SKILL_DIRS.items()}
 
 
 def rule_installed(rule):
@@ -195,7 +201,8 @@ def hook_groups(data):
 
 def managed_name(group):
     for h in group.get("hooks") or []:
-        m = re.search(re.escape(HOOK_MARK) + r"\s+(\S+)", str(h.get("command", "")))
+        m = re.search(r"(?:" + re.escape(HOOK_MARK) + "|" + re.escape(OLD_HOOK_MARK) + r")\s+(\S+)",
+                      str(h.get("command", "")))
         if m:
             return m.group(1)
     return None
@@ -249,7 +256,7 @@ def external_skills():
         if not base.is_dir():
             continue
         for e in sorted(base.iterdir()):
-            if e.name.startswith(".") or in_harness(e):
+            if e.name.startswith(".") or in_knack(e):
                 continue
             via = f" → {pretty(os.path.realpath(e))}" if e.is_symlink() else ""
             if (e / "SKILL.md").is_file():
@@ -265,7 +272,7 @@ def external_skills():
 
 
 def external_agents():
-    return [e.name for e in sorted(AGENT_DIR.glob("*.md")) if not in_harness(e)] if AGENT_DIR.is_dir() else []
+    return [e.name for e in sorted(AGENT_DIR.glob("*.md")) if not in_knack(e)] if AGENT_DIR.is_dir() else []
 
 
 def mask(s):
@@ -334,24 +341,24 @@ def cmd_list(a):
     out = {}
     if "skills" in types:
         out["skills"] = [{"name": s["name"], "summary": summary(s["desc"]), "installed": skill_installed(s["name"])}
-                         for s in harness_skills()]
+                         for s in knack_skills()]
         if ext:
             out["external_skills"] = external_skills()
     if "rules" in types:
         out["rules"] = [{"name": r["name"], "load": r["load"], "summary": summary(r["desc"]), "installed": rule_installed(r)}
-                        for r in harness_rules()]
+                        for r in knack_rules()]
         if ext:
             out["external_rules"] = external_rules()
     if "agents" in types:
         out["agents"] = [{"name": g["name"], "summary": summary(g["desc"]), "installed": agent_installed(g)}
-                         for g in harness_agents()]
+                         for g in knack_agents()]
         if ext:
             out["external_agents"] = external_agents()
     if "hooks" in types:
         out["hooks"] = [{"name": h["name"], "enabled": h.get("enabled", True),
                          "events": sorted({t["event"] for t in h.get("targets", {}).values()}),
                          "summary": summary(h.get("description", "")), "installed": hook_installed(h)}
-                        for h in harness_hooks()]
+                        for h in knack_hooks()]
         if ext:
             out["external_hooks"] = external_hooks()
     if "plugins" in types and ext:
@@ -365,7 +372,7 @@ def cmd_list(a):
 
 
 def print_list(out):
-    print(f"하네스 {pretty(HARNESS)} · 설치 상태 [claude codex]")
+    print(f"하네스 {pretty(KNACK)} · 설치 상태 [claude codex]")
     for key, label in (("skills", "스킬"), ("rules", "룰"), ("agents", "서브에이전트"), ("hooks", "훅")):
         if key not in out:
             continue
@@ -406,7 +413,7 @@ def print_list(out):
         print(f"\n[MCP 서버 {len(out['mcp'])}]")
         for name, locs in sorted(out["mcp"].items()):
             print(f"  {name:<24} {', '.join(locs)}")
-    print("\n상세: harness show <skill|rule|agent|hook|ref> <이름> [--toc | --section <번호|제목>]")
+    print("\n상세: knack show <skill|rule|agent|hook|ref> <이름> [--toc | --section <번호|제목>]")
 
 
 # ── show ─────────────────────────────────────
@@ -414,30 +421,30 @@ def resolve(kind, name):
     kind = {"skills": "skill", "rules": "rule", "agents": "agent", "hooks": "hook",
             "refs": "ref", "templates": "template"}.get(kind, kind)
     if kind == "usage":
-        return HARNESS / "skills" / "harness-help" / "USAGE.md"
+        return KNACK / "skills" / "knack-help" / "USAGE.md"
     if not name:
-        fail(f"이름이 필요합니다: harness show {kind} <이름>", 2)
+        fail(f"이름이 필요합니다: knack show {kind} <이름>", 2)
     path = None
     if kind == "skill":
-        path = HARNESS / "skills" / name / "SKILL.md"
+        path = KNACK / "skills" / name / "SKILL.md"
     elif kind == "rule":
-        path = next((r["path"] for r in harness_rules() if name in (r["name"], r["path"].stem)), None)
+        path = next((r["path"] for r in knack_rules() if name in (r["name"], r["path"].stem)), None)
     elif kind == "agent":
-        path = next((g["path"] for g in harness_agents() if name in (g["name"], g["path"].stem)), None)
+        path = next((g["path"] for g in knack_agents() if name in (g["name"], g["path"].stem)), None)
     elif kind == "hook":
-        path = HARNESS / "hooks" / name / "hook.json"
+        path = KNACK / "hooks" / name / "hook.json"
     elif kind in ("ref", "template"):
         sub = "references" if kind == "ref" else "templates"
         skill, _, base = name.rpartition("/")
-        cands = sorted((HARNESS / "skills").glob(f"{skill or '*'}/{sub}/**/{base}.md"))
+        cands = sorted((KNACK / "skills").glob(f"{skill or '*'}/{sub}/**/{base}.md"))
         if len(cands) > 1:
             fail("같은 이름이 여러 개입니다. <스킬>/<이름> 으로 지정하세요:\n" +
-                 "\n".join(f"  {c.parts[-len(c.relative_to(HARNESS / 'skills').parts)]}/{base}  ({rel(c)})" for c in cands), 2)
+                 "\n".join(f"  {c.parts[-len(c.relative_to(KNACK / 'skills').parts)]}/{base}  ({rel(c)})" for c in cands), 2)
         path = cands[0] if cands else None
     else:
         fail(f"알 수 없는 종류: {kind} (skill, rule, agent, hook, ref, template, usage)", 2)
     if not path or not Path(path).is_file():
-        fail(f"{kind} '{name}' 을(를) 찾을 수 없습니다. 목록: harness list", 1)
+        fail(f"{kind} '{name}' 을(를) 찾을 수 없습니다. 목록: knack list", 1)
     return Path(path)
 
 
@@ -495,7 +502,7 @@ def cmd_show(a):
             hit = next(((i, end) for i, end, _, htext in section_bounds(lines) if match_heading(htext, key)), None)
             if not hit:
                 avail = ", ".join(h for _, _, lvl, h in section_bounds(lines) if lvl <= 2)
-                fail(f"섹션 '{key}' 없음. 목차: harness show {a.kind} {a.name or ''} --toc\n  {avail}", 1)
+                fail(f"섹션 '{key}' 없음. 목차: knack show {a.kind} {a.name or ''} --toc\n  {avail}", 1)
             chunks.append("\n".join(lines[hit[0]:hit[1]]).rstrip())
         print("\n\n".join(chunks))
         return
@@ -507,7 +514,7 @@ def cmd_search(a):
     pat = re.compile(a.pattern if a.regex else re.escape(a.pattern), re.I)
     hits, per_file = [], {}
     for root in ("rules", "skills", "agents", "hooks"):
-        base = HARNESS / root
+        base = KNACK / root
         for f in sorted(base.rglob("*")) if base.is_dir() else []:
             if not f.is_file() or f.suffix not in (".md", ".json", ".sh", ".py"):
                 continue
@@ -543,7 +550,7 @@ def cmd_doctor(_a):
         counts["bad"] += 1
         print(f"  ✗ {m}")
 
-    skills, rules, agents, hooks = harness_skills(), harness_rules(), harness_agents(), harness_hooks()
+    skills, rules, agents, hooks = knack_skills(), knack_rules(), knack_agents(), knack_hooks()
     print("[하네스 구조]")
     before = counts["bad"]
     for s in skills:
@@ -594,7 +601,7 @@ def cmd_doctor(_a):
     if cfg and not warns:
         delegated = sum(len(v) for v in task_agents().values())
         ok(f"models.json: 작업 {len(cfg['tasks'])}개 · 서브에이전트 위임 {delegated}개 · 모델 이름 확인됨")
-    if cfg and CODEX_CONFIG.is_file() and harness_agents():
+    if cfg and CODEX_CONFIG.is_file() and knack_agents():
         if not re.search(r"^\[features\][^\[]*?^multi_agent\s*=\s*true", CODEX_CONFIG.read_text(encoding="utf-8"), re.M | re.S):
             warn("Codex 서브에이전트 역할을 쓰려면 ~/.codex/config.toml 에 [features] multi_agent = true 필요")
 
@@ -602,14 +609,14 @@ def cmd_doctor(_a):
     ext = external_skills()
     dups = sorted({s["name"] for s in skills} & set(ext))
     for d in dups:
-        warn(f"스킬 '{d}' 가 하네스와 외부({', '.join(ext[d])})에 모두 있음 → 설치 시 SKIP (교체: harness install --force)")
+        warn(f"스킬 '{d}' 가 하네스와 외부({', '.join(ext[d])})에 모두 있음 → 설치 시 SKIP (교체: knack install --force)")
     if not dups:
         ok(f"하네스 스킬과 같은 이름의 외부 스킬 없음 (외부 스킬 {len(ext)}개)")
 
     print("[페르소나]")
     P = __import__("persona")
     if not P.CORE.is_file():
-        ok("페르소나 미설정 (선택. harness persona init)")
+        ok("페르소나 미설정 (선택. knack persona init)")
     else:
         issues = P.problems()
         for line in issues:
@@ -625,20 +632,20 @@ def cmd_doctor(_a):
     missing += [f"rule:{r['name']}" for r in rules if False in rule_installed(r).values()]
     missing += [f"hook:{h['name']}" for h in hooks if False in hook_installed(h).values()]
     if missing:
-        warn(f"미설치·갱신 필요 {len(missing)}건: {', '.join(missing[:8])} → harness install")
+        warn(f"미설치·갱신 필요 {len(missing)}건: {', '.join(missing[:8])} → knack install")
     else:
         ok("모든 항목 설치됨")
     broken = [pretty(p) for d in (*SKILL_DIRS.values(), AGENT_DIR, HOME / ".local" / "bin") if d.is_dir()
-              for p in d.iterdir() if p.is_symlink() and os.readlink(p).startswith(str(HARNESS)) and not p.exists()]
+              for p in d.iterdir() if p.is_symlink() and os.readlink(p).startswith(str(KNACK)) and not p.exists()]
     for b in broken:
-        warn(f"끊어진 링크 {b} → harness install 이 정리")
+        warn(f"끊어진 링크 {b} → knack install 이 정리")
 
     print("[환경]")
     ok(f"python3 {sys.version.split()[0]}")
-    if shutil.which("harness"):
-        ok("harness 명령이 PATH에 있음")
+    if shutil.which("knack"):
+        ok("knack 명령이 PATH에 있음")
     else:
-        warn("harness 명령이 PATH에 없음 → ~/.local/bin 을 PATH에 추가")
+        warn("knack 명령이 PATH에 없음 → ~/.local/bin 을 PATH에 추가")
     if any("codex" in h.get("targets", {}) and h.get("enabled", True) for h in hooks):
         toml = CODEX_HOME / "config.toml"
         text = toml.read_text(encoding="utf-8") if toml.is_file() else ""
@@ -662,14 +669,14 @@ def set_frontmatter_name(f, name):
 
 def write_source(dest, info):
     info["added"] = date.today().isoformat()
-    (dest / ".harness-source").write_text(json.dumps(info, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    (dest / ".knack-source").write_text(json.dumps(info, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 
 def cmd_add(a):
     tmp, commit = None, None
     try:
         if GIT_URL.search(a.source):
-            tmp = tempfile.mkdtemp(prefix="harness-add-")
+            tmp = tempfile.mkdtemp(prefix="knack-add-")
             r = subprocess.run(["git", "clone", "--depth", "1", "--quiet", a.source, tmp], capture_output=True, text=True)
             if r.returncode:
                 fail("git clone 실패: " + r.stderr.strip())
@@ -698,7 +705,7 @@ def cmd_add(a):
             fail(f"스킬 이름 형식 오류: '{name}' (소문자·숫자·-). --name 으로 지정하세요.", 2)
         if not meta.get("description"):
             fail("SKILL.md frontmatter 에 description 이 없습니다.", 2)
-        dest = HARNESS / "skills" / name
+        dest = KNACK / "skills" / name
         if dest.exists() and not a.replace:
             fail(f"하네스에 이미 '{name}' 스킬이 있습니다. 원본으로 갱신하려면 --replace", 2)
         if dest.exists():
@@ -708,18 +715,18 @@ def cmd_add(a):
             set_frontmatter_name(dest / "SKILL.md", name)
         write_source(dest, {"source": a.source, "subdir": str(src.relative_to(base)) if src != base else "", "commit": commit})
 
-        files = [p for p in dest.rglob("*") if p.is_file() and p.name != ".harness-source"]
+        files = [p for p in dest.rglob("*") if p.is_file() and p.name not in (".knack-source", ".harness-source")]
         runnable = [rel(p) for p in files if os.access(p, os.X_OK) or p.suffix in (".sh", ".py", ".js", ".ts", ".rb")]
         print(f"추가: skills/{name} ({len(files)}개 파일)")
         if runnable:
             print("  ⚠ 실행 가능한 파일 — 내용을 검토하세요: " + ", ".join(runnable[:10]))
         ext = external_skills().get(name)
         if ext:
-            print(f"  ⚠ 외부에 같은 이름: {', '.join(ext)} → 설치 시 SKIP. 교체: harness install --force")
+            print(f"  ⚠ 외부에 같은 이름: {', '.join(ext)} → 설치 시 SKIP. 교체: knack install --force")
         if a.install:
-            subprocess.run([str(HARNESS / "install.sh"), "--global"], check=False)
+            subprocess.run([str(KNACK / "install.sh"), "--global"], check=False)
         else:
-            print("다음: harness install --dry-run → harness install → 하네스 레포 커밋")
+            print("다음: knack install --dry-run → knack install → 하네스 레포 커밋")
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -729,14 +736,14 @@ def cmd_adopt(a):
     if a.src:
         locs = [Path(a.src).expanduser()]
     else:
-        locs = [b / a.name for b in EXTERNAL_SKILL_DIRS if (b / a.name / "SKILL.md").is_file() and not in_harness(b / a.name)]
+        locs = [b / a.name for b in EXTERNAL_SKILL_DIRS if (b / a.name / "SKILL.md").is_file() and not in_knack(b / a.name)]
     if not locs:
-        fail(f"외부 스킬 '{a.name}' 을(를) 찾지 못했습니다. (harness list skills --all)")
+        fail(f"외부 스킬 '{a.name}' 을(를) 찾지 못했습니다. (knack list skills --all)")
     src = locs[0]
     if src.is_symlink():
         fail(f"{pretty(src)} 는 {pretty(os.path.realpath(src))} 로의 링크입니다. "
-             f"원본 위치에서 관리되므로 harness add skill {pretty(os.path.realpath(src))} 로 복사하세요.", 2)
-    dest = HARNESS / "skills" / a.name
+             f"원본 위치에서 관리되므로 knack add skill {pretty(os.path.realpath(src))} 로 복사하세요.", 2)
+    dest = KNACK / "skills" / a.name
     if dest.exists():
         fail(f"하네스에 이미 '{a.name}' 스킬이 있습니다.", 2)
     if not read_md(src / "SKILL.md")[0].get("description"):
@@ -746,7 +753,7 @@ def cmd_adopt(a):
     print(f"이동: {pretty(src)} → skills/{a.name}")
     if len(locs) > 1:
         print("  ⚠ 같은 이름의 복사본이 남아 있습니다(삭제하지 않음): " + ", ".join(pretty(p) for p in locs[1:]))
-    print("다음: harness install (원래 위치에 링크 생성) → 하네스 레포 커밋")
+    print("다음: knack install (원래 위치에 링크 생성) → 하네스 레포 커밋")
 
 
 SKILL_TEMPLATE = """---
@@ -801,23 +808,23 @@ def cmd_new(a):
         fail(f"이름 형식 오류: '{a.name}' (소문자·숫자·-)", 2)
     title = a.name.replace("-", " ").title()
     if a.kind == "skill":
-        d = HARNESS / "skills" / a.name
+        d = KNACK / "skills" / a.name
         if d.exists():
             fail(f"이미 있음: {rel(d)}", 2)
         d.mkdir(parents=True)
         (d / "SKILL.md").write_text(SKILL_TEMPLATE.format(name=a.name, title=title), encoding="utf-8")
-        created, nxt = [d / "SKILL.md"], "SKILL.md 작성 → skills/harness-help/USAGE.md 에 안내 추가 → harness test → harness install"
+        created, nxt = [d / "SKILL.md"], "SKILL.md 작성 → skills/knack-help/USAGE.md 에 안내 추가 → knack test → knack install"
     elif a.kind == "rule":
-        if any(r["name"] == a.name for r in harness_rules()):
+        if any(r["name"] == a.name for r in knack_rules()):
             fail(f"이미 있는 룰: {a.name}", 2)
-        nums = [int(m.group(1)) for f in (HARNESS / "rules").glob("*.md") if (m := re.match(r"(\d+)-", f.name))]
-        f = HARNESS / "rules" / f"{(max(nums) if nums else 0) + 10:02d}-{a.name}.md"
+        nums = [int(m.group(1)) for f in (KNACK / "rules").glob("*.md") if (m := re.match(r"(\d+)-", f.name))]
+        f = KNACK / "rules" / f"{(max(nums) if nums else 0) + 10:02d}-{a.name}.md"
         load = "always" if a.always else "on-demand"
         f.write_text(RULE_TEMPLATE.format(name=a.name, title=title, load=load), encoding="utf-8")
         created = [f]
-        nxt = "내용 작성 → harness install" + (" (always 룰은 매 세션 컨텍스트에 로드되므로 짧게)" if a.always else "")
+        nxt = "내용 작성 → knack install" + (" (always 룰은 매 세션 컨텍스트에 로드되므로 짧게)" if a.always else "")
     else:
-        d = HARNESS / "hooks" / a.name
+        d = KNACK / "hooks" / a.name
         if d.exists():
             fail(f"이미 있음: {rel(d)}", 2)
         d.mkdir(parents=True)
@@ -829,20 +836,20 @@ def cmd_new(a):
         script.write_text(HOOK_TEMPLATE.format(name=a.name), encoding="utf-8")
         script.chmod(0o755)
         created = [d / "hook.json", script]
-        nxt = f"hook.py 작성 → hook.json targets 확인 → harness hook enable {a.name} → harness install"
+        nxt = f"hook.py 작성 → hook.json targets 확인 → knack hook enable {a.name} → knack install"
     for c in created:
         print(f"생성: {rel(c)}")
     print(f"다음: {nxt}")
 
 
 def cmd_hook(a):
-    f = HARNESS / "hooks" / a.name / "hook.json"
+    f = KNACK / "hooks" / a.name / "hook.json"
     if not f.is_file():
-        fail(f"훅 없음: {a.name} (harness list hooks)")
+        fail(f"훅 없음: {a.name} (knack list hooks)")
     spec = json.loads(f.read_text(encoding="utf-8"))
     spec["enabled"] = a.action == "enable"
     f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"{a.name}: {'on' if spec['enabled'] else 'off'} → 적용: harness install")
+    print(f"{a.name}: {'on' if spec['enabled'] else 'off'} → 적용: knack install")
 
 
 # ── hooks-sync (install.sh 전용) ──────────────
@@ -855,13 +862,13 @@ def cmd_hooks_sync(a):
         return
     wanted = {}
     if a.action != "uninstall":
-        for h in harness_hooks():
+        for h in knack_hooks():
             t = h.get("targets", {}).get(a.agent)
             if not t or not h.get("enabled", True):
                 continue
             group = {"matcher": t["matcher"]} if t.get("matcher") else {}
             group["hooks"] = [{"type": "command", "timeout": t.get("timeout", 10),
-                               "command": f'"{a.harness}/hooks/{h["name"]}/{h["command"]}" {HOOK_MARK} {h["name"]}'}]
+                               "command": f'"{a.knack}/hooks/{h["name"]}/{h["command"]}" {HOOK_MARK} {h["name"]}'}]
             wanted[h["name"]] = (t["event"], group)
     current = {}
     for event, g in hook_groups(data):
@@ -921,7 +928,7 @@ def resolve_model(cfg, task, agent):
     else:
         t = cfg["tasks"].get(task)
         if t is None:
-            fail(f"알 수 없는 작업 유형: {task} (목록: harness model)", 2)
+            fail(f"알 수 없는 작업 유형: {task} (목록: knack model)", 2)
         spec = dict(cfg["tiers"][agent][t["tier"]])
         spec.update(t.get(agent) or {})
     return spec.get("model"), spec.get("effort")
@@ -931,13 +938,18 @@ def model_label(model, effort):
     return f"{model}/{effort}" if effort else (model or "-")
 
 
+def env_var(name):
+    """KNACK_<name> 을 읽고, 없으면 개명 전 HARNESS_<name> 도 받아 준다."""
+    return os.environ.get(f"KNACK_{name}") or os.environ.get(f"HARNESS_{name}")
+
+
 def agent_cmd(agent, override=None):
-    """에이전트 실행 명령. override > HARNESS_<AGENT>_CMD (예: 'headroom wrap claude --') > HARNESS_<AGENT>_BIN > 이름.
+    """에이전트 실행 명령. override > KNACK_<AGENT>_CMD (예: 'headroom wrap claude --') > KNACK_<AGENT>_BIN > 이름.
     subprocess 로 실행하므로 셸 함수·별칭은 적용되지 않는다."""
-    spec = override or os.environ.get(f"HARNESS_{agent.upper()}_CMD")
+    spec = override or env_var(f"{agent.upper()}_CMD")
     if spec:
         return shlex.split(spec)
-    return [os.environ.get(f"HARNESS_{agent.upper()}_BIN") or agent]
+    return [env_var(f"{agent.upper()}_BIN") or agent]
 
 
 def model_flags(agent, model, effort):
@@ -966,7 +978,7 @@ def classify(cfg, text):
 
 def task_agents():
     out = {}
-    for g in harness_agents():
+    for g in knack_agents():
         if g["meta"].get("task"):
             out.setdefault(g["meta"]["task"], []).append(g["name"])
     return out
@@ -986,7 +998,7 @@ def models_problems():
         for name, t in tasks.items():
             if t.get("tier") not in tiers[agent]:
                 out.append(f"models.json: tasks.{name} 의 티어 '{t.get('tier')}' 가 tiers.{agent} 에 없음")
-    for g in harness_agents():
+    for g in knack_agents():
         task = g["meta"].get("task")
         if task and task not in tasks:
             out.append(f"{rel(g['path'])}: task '{task}' 가 models.json 에 없음")
@@ -1032,7 +1044,7 @@ def models_index(cfg, agent):
     """지시 파일 블록에 넣는 작업 유형별 모델 색인 (몇 줄로 짧게)."""
     delegates, main = task_agents(), resolve_model(cfg, "main", agent)
     main_rank = tier_rank_of(cfg, agent, main[0])
-    lines, in_session, upgrade = ["작업 유형별 모델 (`harness model` 로 조회·변경):"], [], []
+    lines, in_session, upgrade = ["작업 유형별 모델 (`knack model` 로 조회·변경):"], [], []
     for name, t in cfg["tasks"].items():
         label = model_label(*resolve_model(cfg, name, agent))
         if name in delegates:
@@ -1046,7 +1058,7 @@ def models_index(cfg, agent):
     if in_session:
         lines.append(f"- {', '.join(in_session)} → 이 세션 · {model_label(*main)}")
     if upgrade:
-        lines.append(f"- 이 세션보다 높은 모델을 권장하는 작업: {', '.join(upgrade)}. 규모가 크면 `harness run <작업>` 으로 새 세션을 제안한다.")
+        lines.append(f"- 이 세션보다 높은 모델을 권장하는 작업: {', '.join(upgrade)}. 규모가 크면 `knack run <작업>` 으로 새 세션을 제안한다.")
     return "\n".join(lines)
 
 
@@ -1067,7 +1079,7 @@ def render_codex_role(g, cfg):
     task = g["meta"].get("task")
     model, effort = resolve_model(cfg, task, "codex") if task else (None, None)
     _, body = read_md(g["path"])
-    out = [f"# harness: {rel(g['path'])} 에서 생성 · 직접 수정 금지"]
+    out = [f"# knack: {rel(g['path'])} 에서 생성 · 직접 수정 금지"]
     if model:
         out.append(f"model = {json.dumps(model)}")
     if effort:
@@ -1080,19 +1092,28 @@ def render_codex_role(g, cfg):
 
 def codex_roles_block():
     lines = ["# 하네스 서브에이전트 역할 (spawn_agent 의 agent_type). 이 블록 뒤에 최상위 키를 추가하지 마세요."]
-    for g in harness_agents():
+    for g in knack_agents():
         lines += ["", f"[agents.{g['name']}]", f"description = {json.dumps(g['desc'], ensure_ascii=False)}",
                   f"config_file = {json.dumps(str(CODEX_ROLE_DIR / (g['name'] + '.toml')))}"]
     return "\n".join(lines)
 
 
 def set_block(text, start, end, content):
-    """마커 블록을 교체하거나 파일 끝에 붙인다. content 가 None 이면 제거."""
-    pat = re.compile(r"\n*^" + re.escape(start) + r".*?^" + re.escape(end) + r"[^\n]*\n?", re.S | re.M)
-    base = pat.sub("\n", text).rstrip("\n")
+    """마커 블록을 교체하거나 파일 끝에 붙인다. content 가 None 이면 제거.
+
+    개명 전 마커(harness:start)로 쓰인 블록도 함께 걷어낸다.
+    """
+    def strip(src, s, e):
+        pat = re.compile(r"\n*^" + re.escape(s) + r".*?^" + re.escape(e) + r"[^\n]*\n?", re.S | re.M)
+        return pat.sub("\n", src)
+
+    base = strip(text, start, end)
+    for old_start, old_end in OLD_BLOCKS:
+        base = strip(base, old_start, old_end)
+    base = base.rstrip("\n")
     if content is None:
         return base + "\n" if base else ""
-    block = f"{start} (managed by {pretty(HARNESS)} — 직접 수정 금지)\n{content}\n{end}"
+    block = f"{start} (managed by {pretty(KNACK)} — 직접 수정 금지)\n{content}\n{end}"
     return f"{base}\n\n{block}\n" if base else block + "\n"
 
 
@@ -1146,8 +1167,8 @@ def cmd_model(a):
             codex = model_label(*resolve_model(cfg, name, "codex"))
             via = ", ".join(delegates.get(name, [])) or "세션"
             print(f"  {name:<10} {t['tier']:<8} {claude:<14} | {codex:<22} → {via} · {t.get('desc', '')}")
-        print("\n분류: harness model which \"<요청>\" · 조회: harness model get <작업> --agent claude|codex"
-              " · 변경: harness model set <작업|main|tier:이름> <티어|모델> [--agent] [--effort]")
+        print("\n분류: knack model which \"<요청>\" · 조회: knack model get <작업> --agent claude|codex"
+              " · 변경: knack model set <작업|main|tier:이름> <티어|모델> [--agent] [--effort]")
     elif action == "get":
         model, effort = resolve_model(cfg, a.task, a.agent)
         if a.format == "json":
@@ -1200,7 +1221,7 @@ def cmd_model_set(cfg, a):
     print(f"변경: {target} ← {value}{f' ({a.effort})' if a.effort else ''}" + (f" [{a.agent}]" if a.agent else ""))
     for w in model_warnings(cfg):
         print(f"  ⚠ {w}")
-    print("적용: harness install")
+    print("적용: knack install")
 
 
 def cmd_run(a):
@@ -1219,7 +1240,7 @@ def cmd_run(a):
         cmd.append(prompt)
     elif a.print:
         fail("--print 에는 프롬프트가 필요합니다.", 2)
-    print(f"harness run: {task} → {agent} {model_label(model, effort)}", file=sys.stderr)
+    print(f"knack run: {task} → {agent} {model_label(model, effort)}", file=sys.stderr)
     if a.dry_run:
         print(shlex.join(cmd))
         return
@@ -1258,12 +1279,12 @@ def cmd_models_sync(a):
 
     if a.agent == "claude":
         adir = Path(a.agents_dir) if a.agents_dir else AGENT_DIR
-        want = {} if removing else {g["path"].name: render_claude_agent(g, cfg) for g in harness_agents()}
+        want = {} if removing else {g["path"].name: render_claude_agent(g, cfg) for g in knack_agents()}
         existing = {p.name: p for p in adir.glob("*.md")} if adir.is_dir() else {}
 
         def owned(p):
             if p.is_symlink():
-                return os.readlink(p).startswith(a.harness) or in_harness(p)
+                return os.readlink(p).startswith(a.knack) or in_knack(p)
             try:
                 return GEN_MARK in p.read_text(encoding="utf-8")[:4000]
             except OSError:
@@ -1321,7 +1342,7 @@ def cmd_models_sync(a):
                     f.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     if a.agent == "codex":
-        want = {} if removing else {f"{g['name']}.toml": render_codex_role(g, cfg) for g in harness_agents()}
+        want = {} if removing else {f"{g['name']}.toml": render_codex_role(g, cfg) for g in knack_agents()}
         existing = {p.name: p for p in CODEX_ROLE_DIR.glob("*.toml")} if CODEX_ROLE_DIR.is_dir() else {}
         for name, content in want.items():
             p = CODEX_ROLE_DIR / name
@@ -1344,6 +1365,11 @@ def cmd_models_sync(a):
                 say("EXTRA" if status else "REMOVE", pretty(p))
                 if not status and not a.dry_run:
                     p.unlink()
+        # 개명 전 역할 폴더가 남아 있으면 정리한다 (config.toml 은 새 경로를 가리킨다)
+        if OLD_CODEX_ROLE_DIR.is_dir() and OLD_CODEX_ROLE_DIR != CODEX_ROLE_DIR:
+            say("STALE" if status else "REMOVE", f"{pretty(OLD_CODEX_ROLE_DIR)} (개명 전 역할 폴더)")
+            if not status and not a.dry_run:
+                shutil.rmtree(OLD_CODEX_ROLE_DIR, ignore_errors=True)
 
         f = CODEX_CONFIG
         text = f.read_text(encoding="utf-8") if f.is_file() else ""
@@ -1380,7 +1406,7 @@ def cmd_models_sync(a):
 
 
 def main():
-    p = argparse.ArgumentParser(prog="harness")
+    p = argparse.ArgumentParser(prog="knack")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("list", help="하네스·외부 항목과 설치 상태")
@@ -1431,8 +1457,8 @@ def main():
     s.add_argument("--agent", required=True, choices=tuple(HOOK_FILES))
     s.add_argument("--file", required=True)
     s.add_argument("--action", required=True, choices=("install", "uninstall", "status"))
-    s.add_argument("--harness", required=True)
-    s.add_argument("--backup-dir", default=str(HOME / ".harness-backups" / "manual"))
+    s.add_argument("--knack", required=True)
+    s.add_argument("--backup-dir", default=str(HOME / ".knack-backups" / "manual"))
     s.add_argument("--dry-run", action="store_true")
     s.add_argument("--force", action="store_true")
 
@@ -1461,8 +1487,8 @@ def main():
     s = sub.add_parser("models-sync")
     s.add_argument("--agent", required=True, choices=AGENTS_SUPPORTED)
     s.add_argument("--action", required=True, choices=("install", "uninstall", "status"))
-    s.add_argument("--harness", required=True)
-    s.add_argument("--backup-dir", default=str(HOME / ".harness-backups" / "manual"))
+    s.add_argument("--knack", required=True)
+    s.add_argument("--backup-dir", default=str(HOME / ".knack-backups" / "manual"))
     s.add_argument("--agents-dir")
     s.add_argument("--no-main", action="store_true")
     s.add_argument("--dry-run", action="store_true")
@@ -1486,16 +1512,16 @@ def main():
         "bench", help="작업 세트를 조건별로 실행·비교", formatter_class=argparse.RawDescriptionHelpFormatter,
         description="같은 작업 세트를 하네스 미적용(baseline)과 적용 조건으로 실행해 토큰·check 통과율·턴·시간을 비교한다.\n"
                     "baseline 은 전역 설정을 건드리지 않고 하네스만 뺀 HOME 미러로 실행한다.",
-        epilog="예:\n  harness bench init                 # ~/.harness-bench/tasks.json 생성 후 repo·tasks 편집\n"
-               "  harness bench ab --repeat 2 --dry-run\n  harness bench ab --repeat 2        # baseline → harness → 비교표\n"
-               "  harness bench baseline             # baseline 에서 빠지는 항목 확인")
+        epilog="예:\n  knack bench init                 # ~/.knack-bench/tasks.json 생성 후 repo·tasks 편집\n"
+               "  knack bench ab --repeat 2 --dry-run\n  knack bench ab --repeat 2        # baseline → knack → 비교표\n"
+               "  knack bench baseline             # baseline 에서 빠지는 항목 확인")
     bsub = s.add_subparsers(dest="action", required=True)
     b = bsub.add_parser("init", help="작업 파일 예시 생성")
-    b.add_argument("path", nargs="?", help="기본: ~/.harness-bench/tasks.json")
+    b.add_argument("path", nargs="?", help="기본: ~/.knack-bench/tasks.json")
     bsub.add_parser("baseline", help="하네스만 뺀 HOME 미러를 만들고 제외 항목 출력")
 
     def bench_run_options(b):
-        b.add_argument("tasks", nargs="?", help="작업 파일 (기본: ~/.harness-bench/tasks.json)")
+        b.add_argument("tasks", nargs="?", help="작업 파일 (기본: ~/.knack-bench/tasks.json)")
         b.add_argument("--agent", choices=AGENTS_SUPPORTED, help="기본: 작업 파일의 agent, 없으면 claude")
         b.add_argument("--repeat", type=int, default=1, help="작업별 반복 횟수")
         b.add_argument("--only", help="작업 id 쉼표 목록")
@@ -1510,13 +1536,13 @@ def main():
         b.add_argument("--check-timeout", type=int, default=900)
         b.add_argument("--agent-args", help="에이전트 CLI 에 넘길 추가 인자 (예: --agent-args='--allowedTools Bash')")
         b.add_argument("--agent-cmd", help="에이전트 실행 명령 (예: --agent-cmd='headroom wrap claude --'). "
-                                           "기본: HARNESS_CLAUDE_CMD/HARNESS_CODEX_CMD 또는 PATH 의 claude/codex")
+                                           "기본: KNACK_CLAUDE_CMD/KNACK_CODEX_CMD 또는 PATH 의 claude/codex")
 
     b = bsub.add_parser("run", help="한 조건 실행")
     bench_run_options(b)
-    b.add_argument("--label", required=True, help="조건 이름 (예: baseline, harness)")
+    b.add_argument("--label", required=True, help="조건 이름 (예: baseline, knack)")
     b.add_argument("--baseline", action="store_true", help="하네스만 뺀 HOME 미러로 실행 (전역 설정은 그대로)")
-    b = bsub.add_parser("ab", help="baseline(하네스 제외)과 harness(현재 설정)를 연달아 실행하고 비교")
+    b = bsub.add_parser("ab", help="baseline(하네스 제외)과 knack(현재 설정)를 연달아 실행하고 비교")
     bench_run_options(b)
     b.add_argument("--prefix", help="결과 label 접두어 (기본: ab-<날짜시각>)")
     b = bsub.add_parser("compare", help="두 조건 비교")
@@ -1526,11 +1552,11 @@ def main():
     bsub.add_parser("list", help="저장된 조건 목록")
 
     s = sub.add_parser("persona", help="사용자 페르소나 (지시 블록에 주입되는 사실)",
-                       epilog="예:\n  harness persona init            # 템플릿 생성 후 채우기\n"
-                              "  harness persona set stack 'Spring Boot 3.2; MySQL 8'\n"
-                              "  cat me.md | harness persona import -\n"
-                              "  harness persona import --detail db schema.md\n"
-                              "  harness persona check           # 형식·길이 점검",
+                       epilog="예:\n  knack persona init            # 템플릿 생성 후 채우기\n"
+                              "  knack persona set stack 'Spring Boot 3.2; MySQL 8'\n"
+                              "  cat me.md | knack persona import -\n"
+                              "  knack persona import --detail db schema.md\n"
+                              "  knack persona check           # 형식·길이 점검",
                        formatter_class=argparse.RawDescriptionHelpFormatter)
     psub = s.add_subparsers(dest="action")
     x = psub.add_parser("show", help="주입되는 내용 (주제를 주면 상세)")

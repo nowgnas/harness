@@ -1,6 +1,6 @@
 # 기능 구현 단계별 절차
 
-feature-implementation 스킬의 세부 절차. `harness show ref feature-workflow --section <번호>`로 필요한 단계만 읽는다.
+feature-implementation 스킬의 세부 절차. `knack show ref feature-workflow --section <번호>`로 필요한 단계만 읽는다.
 게이트(5단계), 승인 후 진행 방식, 완료 기준은 SKILL.md에 있다.
 
 ## 작업 폴더
@@ -15,7 +15,7 @@ mkdir -p .design/<YYYYMMDD>-<slug> && printf '*\n' > .design/.gitignore
 - 참고한 티켓·문서·대화를 기록한다.
 
 ## 2. 정책 명확성 점검
-`harness show ref policy-checklist`의 영역별로 판정한다. 해당 없는 영역은 생략한다.
+`knack show ref policy-checklist`의 영역별로 판정한다. 해당 없는 영역은 생략한다.
 
 | 판정 | 의미 | 필요한 것 |
 |---|---|---|
@@ -28,16 +28,16 @@ mkdir -p .design/<YYYYMMDD>-<slug> && printf '*\n' > .design/.gitignore
 
 ## 3. 코드베이스 맥락 파악
 - `.onboarding/ONBOARDING.md`가 있으면 필요한 섹션만 읽는다. 없는데 레포가 낯설면 `repo-onboarding` quick 모드를 제안한다.
-- `harness show ref conventions`에 따라 가장 비슷한 기존 기능 1~2개를 레퍼런스로 정하고 패키지 구조, 네이밍, 계층 간 책임, 예외·응답·테스트 방식을 추출한다.
+- `knack show ref conventions`에 따라 가장 비슷한 기존 기능 1~2개를 레퍼런스로 정하고 패키지 구조, 네이밍, 계층 간 책임, 예외·응답·테스트 방식을 추출한다.
 - 영향 범위: 변경할 코드의 호출부, 같은 테이블·토픽·캐시를 쓰는 곳, 깨질 수 있는 기존 테스트.
-- 스택별 탐색: `harness show ref java-spring --toc`, `harness show ref dotnet --toc`
+- 스택별 탐색: `knack show ref java-spring --toc`, `knack show ref dotnet --toc`
 
 ## 4. 구현 설계
 `DESIGN.md` 템플릿을 채운다. 반드시 들어가야 할 것:
 - 레퍼런스 기능과 따를 컨벤션
 - 변경 파일 목록(신규/수정). 위치는 기존 패키지 구조를 따른다.
 - API 계약(요청·응답·에러코드)과 하위 호환성
-- 데이터 변경: 스키마, 마이그레이션, 기존 데이터 처리. 스키마가 바뀌면 `harness show ref db-migration`으로 호환성, 배포 순서, 락 영향, 롤백 전략을 적는다.
+- 데이터 변경: 스키마, 마이그레이션, 기존 데이터 처리. 스키마가 바뀌면 `knack show ref db-migration`으로 호환성, 배포 순서, 락 영향, 롤백 전략을 적는다.
 - 트랜잭션 경계, 동시성·멱등성, 외부 연동 실패 처리
 - 테스트 계획 (프로젝트의 테스트 스타일과 계층)
 - 구현 순서 (각 단계가 컴파일·테스트로 검증 가능하게 작게)
@@ -46,7 +46,7 @@ mkdir -p .design/<YYYYMMDD>-<slug> && printf '*\n' > .design/.gitignore
 ## 6. 구현
 - `DESIGN.md`의 구현 순서대로 작게 진행하고, 단계마다 컴파일과 관련 테스트를 돌린다.
 - 레퍼런스 기능과 같은 구조·네이밍·패턴으로 작성한다. 새 라이브러리, 새 패턴, 새 계층이 필요해 보이면 멈추고 묻는다.
-- `harness show ref readable-code`를 따른다. 주석은 코드로 표현할 수 없는 "왜"에만 단다.
+- `knack show ref readable-code`를 따른다. 주석은 코드로 표현할 수 없는 "왜"에만 단다.
 - 설계에 없는 리팩토링, 이름 변경, 포맷 변경은 하지 않는다. 발견한 문제는 요약의 후속 작업에 적는다.
 - 구현 중 새로운 정책 질문이나 설계 변경이 생기면 멈추고 확인받은 뒤 `DESIGN.md` 결정 이력에 남긴다.
 

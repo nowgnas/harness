@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# harness — 개인 하네스 CLI. 사용법: harness help
+# knack — 개인 하네스 CLI. 사용법: knack help
 set -euo pipefail
 
 self="${BASH_SOURCE[0]}"
@@ -7,12 +7,12 @@ while [ -L "$self" ]; do
   target="$(readlink "$self")"
   case "$target" in /*) self="$target" ;; *) self="$(dirname "$self")/$target" ;; esac
 done
-HARNESS_DIR="$(cd "$(dirname "$self")/.." && pwd)"
-PY="$HARNESS_DIR/lib/harness.py"
+KNACK_DIR="$(cd "$(dirname "$self")/.." && pwd)"
+PY="$KNACK_DIR/lib/knack.py"
 
 usage() {
   cat <<EOF
-사용법: harness <명령>
+사용법: knack <명령>
   조회   list [종류] [--all]  show <종류> <이름> [--toc|--section N]  search <키워드>  doctor  skills
   모델   model [list|get|which|set]  run <작업|auto> [--agent] [--print] -- <프롬프트>
   측정   usage [--since 7d] [--by session|model|day|skill|cwd]  bench <init|run|compare|list>
@@ -20,7 +20,7 @@ usage() {
   관리   add skill <경로|URL>  new <skill|rule|hook> <이름>  adopt skill <이름>  hook <enable|disable> <이름>
   설치   install [옵션]  status  update  uninstall [옵션]
   기타   help [스킬]  scan [경로]  test  version
-자세한 내용: harness help
+자세한 내용: knack help
 EOF
 }
 
@@ -33,17 +33,17 @@ case "$cmd" in
     if [ $# -gt 0 ]; then
       exec python3 "$PY" show skill "$1"
     else
-      cat "$HARNESS_DIR/skills/harness-help/USAGE.md"
+      cat "$KNACK_DIR/skills/knack-help/USAGE.md"
     fi ;;
   skills)    exec python3 "$PY" list skills "$@" ;;
   list|show|search|doctor|add|adopt|new|hook|model|run|usage|bench|persona)
              exec python3 "$PY" "$cmd" "$@" ;;
-  status)    exec "$HARNESS_DIR/install.sh" --status "$@" ;;
-  install)   exec "$HARNESS_DIR/install.sh" "$@" ;;
-  update)    git -C "$HARNESS_DIR" pull --ff-only && exec "$HARNESS_DIR/install.sh" --global "$@" ;;
-  uninstall) exec "$HARNESS_DIR/install.sh" --uninstall "$@" ;;
-  scan)      exec bash "$HARNESS_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "${1:-.}" ;;
-  test)      exec bash "$HARNESS_DIR/tests/smoke.sh" ;;
-  version)   git -C "$HARNESS_DIR" log -1 --format='%h (%ad) %s' --date=short ;;
+  status)    exec "$KNACK_DIR/install.sh" --status "$@" ;;
+  install)   exec "$KNACK_DIR/install.sh" "$@" ;;
+  update)    git -C "$KNACK_DIR" pull --ff-only && exec "$KNACK_DIR/install.sh" --global "$@" ;;
+  uninstall) exec "$KNACK_DIR/install.sh" --uninstall "$@" ;;
+  scan)      exec bash "$KNACK_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "${1:-.}" ;;
+  test)      exec bash "$KNACK_DIR/tests/smoke.sh" ;;
+  version)   git -C "$KNACK_DIR" log -1 --format='%h (%ad) %s' --date=short ;;
   *)         echo "알 수 없는 명령: $cmd" >&2; usage >&2; exit 2 ;;
 esac

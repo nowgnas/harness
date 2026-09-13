@@ -26,7 +26,7 @@
    - Concurrent and duplicate requests (idempotency), locking and versioning
    - Events published only after commit
 4. **Data**
-   - Migration safety (section 6 of `harness show ref db-migration`)
+   - Migration safety (section 6 of `knack show ref db-migration`)
    - Entity/schema match, indexes, N+1, paging for large reads
 5. **Security**
    - Missing authorization (access to other users' resources), input validation, SQL or command injection

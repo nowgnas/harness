@@ -6,7 +6,7 @@ description: 처음 보는 백엔드 레포 전체를 파악해 온보딩 문서
 # Repo Onboarding
 
 처음 보는 백엔드 레포(Java/Spring, .NET 중심)를 단계적으로 파악해 대상 레포의 `.onboarding/`에 남긴다.
-단계별 세부 절차는 필요한 단계만 읽는다: `harness show ref onboarding-phases --section <단계 번호>`.
+단계별 세부 절차는 필요한 단계만 읽는다: `knack show ref onboarding-phases --section <단계 번호>`.
 
 ## 모드
 | 모드 | 단계 | 용도 |
@@ -35,7 +35,7 @@ mkdir -p .onboarding/flows && printf '*\n' > .onboarding/.gitignore
 | 6 | 운영: 로컬 실행, 테스트, 설정, 배포, 관측성 |
 | 7 | 리스크와 열린 질문 (deep) |
 
-- 스택 참조는 스캔으로 판별한 것만, 목차부터 본다: `harness show ref java-spring --toc`, `harness show ref dotnet --toc`, `harness show ref backend-lenses --toc`.
+- 스택 참조는 스캔으로 판별한 것만, 목차부터 본다: `knack show ref java-spring --toc`, `knack show ref dotnet --toc`, `knack show ref backend-lenses --toc`.
 - 서브에이전트를 쓸 수 있으면 1·2·4·5단계를 `repo-explorer`에 관점별로 병렬 위임한다.
 
 ## 산출물과 완료 기준

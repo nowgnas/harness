@@ -1,6 +1,6 @@
 # 버그 수정 단계별 절차
 
-bug-fix 스킬의 세부 절차. `harness show ref bugfix-workflow --section <번호>`로 필요한 단계만 읽는다.
+bug-fix 스킬의 세부 절차. `knack show ref bugfix-workflow --section <번호>`로 필요한 단계만 읽는다.
 수정 계획 게이트, 진행 방식, 완료 기준은 SKILL.md에 있다.
 
 ## 1. 증상 정리
@@ -22,13 +22,13 @@ bug-fix 스킬의 세부 절차. `harness show ref bugfix-workflow --section <�
   git log -p -S'<심볼>' -- <경로>
   git bisect start <나쁜 커밋> <좋은 커밋> && git bisect run <재현 테스트 명령>
   ```
-- 흔한 원인: `harness show ref common-causes --section <분류>`
+- 흔한 원인: `knack show ref common-causes --section <분류>`
 - 같은 원인이 다른 곳에도 있는지 검색한다(같은 패턴을 복사해 쓴 코드).
 
 ## 5. 수정
-- 원인 지점을 최소 범위로 고친다. 프로젝트 컨벤션과 `harness show ref readable-code`를 따른다.
+- 원인 지점을 최소 범위로 고친다. 프로젝트 컨벤션과 `knack show ref readable-code`를 따른다.
 - 원인과 무관한 리팩토링은 하지 않는다. 같은 패턴의 다른 발생 지점은 보고한 뒤 결정을 받는다.
-- 스키마를 바꿔야 하면 `harness show ref db-migration`을 따른다.
+- 스키마를 바꿔야 하면 `knack show ref db-migration`을 따른다.
 
 ## 6. 검증
 - 재현 테스트가 실패하다가 통과하는지, 관련 기존 테스트, 빌드, 린트를 확인한다.

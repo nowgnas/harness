@@ -89,14 +89,14 @@ def render_block():
     entries = [(k, v) for k, v in load() if v and not any(STUB_RE.search(x) for x in v)]
     if not entries or not enabled():
         return ""
-    lines = ["## 사용자 (harness persona)",
+    lines = ["## 사용자 (knack persona)",
              "아래는 이 사용자에 대해 확인된 사실이다. 작업 목표·기본값을 정할 때 먼저 따르고,"
              " 레포의 실제 코드와 어긋나면 레포를 믿고 사용자에게 알린다."]
     for key, values in entries:
         lines.append(f"- {LABELS.get(key, key)}: {'; '.join(values)}")
     topics = detail_topics()
     if topics:
-        lines.append(f"필요할 때 읽는 상세 (`harness persona show <주제>`): {', '.join(topics)}")
+        lines.append(f"필요할 때 읽는 상세 (`knack persona show <주제>`): {', '.join(topics)}")
     return "\n".join(lines)
 
 
@@ -119,11 +119,11 @@ def init(a, h):
     CORE.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(TEMPLATE, CORE)
     print(f"생성: {h.pretty(CORE)}\n"
-          f"다음: 자리표시자를 실제 사실로 채우고 `harness persona check` → `harness install`")
+          f"다음: 자리표시자를 실제 사실로 채우고 `knack persona check` → `knack install`")
 
 
 def show(a, h):
-    topic = getattr(a, "topic", None)  # 인자 없는 `harness persona` 도 show 로 온다
+    topic = getattr(a, "topic", None)  # 인자 없는 `knack persona` 도 show 로 온다
     if topic:
         f = DETAIL / f"{topic}.md"
         if not f.is_file():
@@ -131,10 +131,10 @@ def show(a, h):
         print(f.read_text(encoding="utf-8").rstrip())
         return
     if not CORE.is_file():
-        print(f"페르소나가 없습니다. `harness persona init` 으로 만들고 채우세요. (템플릿: {h.pretty(TEMPLATE)})")
+        print(f"페르소나가 없습니다. `knack persona init` 으로 만들고 채우세요. (템플릿: {h.pretty(TEMPLATE)})")
         return
     block = render_block()
-    state = "" if enabled() else "  ⚠ 주입 꺼짐 (harness persona enable)"
+    state = "" if enabled() else "  ⚠ 주입 꺼짐 (knack persona enable)"
     print(f"{h.pretty(CORE)}{state}")
     print(block or "  (주입할 항목이 없습니다 — 값이 비었거나 자리표시자 그대로입니다)")
     for line in problems():
@@ -147,7 +147,7 @@ def _write_core(text, h, what):
     print(f"{what}: {h.pretty(CORE)}")
     for line in problems():
         print(f"  ⚠ {line}")
-    print("반영: harness install (지시 블록에 다시 씁니다)")
+    print("반영: knack install (지시 블록에 다시 씁니다)")
 
 
 def set_key(a, h):
@@ -194,17 +194,17 @@ def import_core(a, h):
         DETAIL.mkdir(parents=True, exist_ok=True)
         f = DETAIL / f"{a.detail}.md"
         f.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
-        print(f"저장: {h.pretty(f)}\n상세는 주입하지 않고 `harness persona show {a.detail}` 로 읽습니다.")
-        print("반영: harness install (주제 목록을 지시 블록에 다시 씁니다)")
+        print(f"저장: {h.pretty(f)}\n상세는 주입하지 않고 `knack persona show {a.detail}` 로 읽습니다.")
+        print("반영: knack install (주제 목록을 지시 블록에 다시 씁니다)")
         return
     if not parse(text):
-        fail("`키: 값` 형식의 항목이 없습니다. `harness persona init` 의 템플릿을 참고하세요.", 2)
+        fail("`키: 값` 형식의 항목이 없습니다. `knack persona init` 의 템플릿을 참고하세요.", 2)
     _write_core(text, h, "가져옴")
 
 
 def check(_a, _h):
     if not CORE.is_file():
-        print("페르소나 미설정 (harness persona init)")
+        print("페르소나 미설정 (knack persona init)")
         return
     issues = problems()
     for line in issues:
@@ -224,5 +224,5 @@ def toggle(_a, h, on):
         DISABLED.unlink(missing_ok=True)
     else:
         PERSONA.mkdir(parents=True, exist_ok=True)
-        DISABLED.write_text("harness persona disable — bench 비교용으로 주입을 끕니다\n", encoding="utf-8")
-    print(f"페르소나 주입 {'켬' if on else '끔'} ({h.pretty(DISABLED)})\n반영: harness install")
+        DISABLED.write_text("knack persona disable — bench 비교용으로 주입을 끕니다\n", encoding="utf-8")
+    print(f"페르소나 주입 {'켬' if on else '끔'} ({h.pretty(DISABLED)})\n반영: knack install")

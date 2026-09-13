@@ -5,7 +5,7 @@ description: 사용자가 준 자기소개·배경 설명을 에이전트가 쓸
 
 # Persona
 
-사용자가 말이나 파일로 준 원자료를 **결정 형태**로 바꿔 `harness persona` 에 저장한다.
+사용자가 말이나 파일로 준 원자료를 **결정 형태**로 바꿔 `knack persona` 에 저장한다.
 core 는 매 세션 지시 블록에 주입되므로 짧아야 하고, 나머지는 상세로 내린다.
 
 ## 판단 기준 — 이 한 줄로 걸러낸다
@@ -29,23 +29,23 @@ core 는 매 세션 지시 블록에 주입되므로 짧아야 하고, 나머지
 - **core** (`persona set`, 15줄 이내): 거의 모든 작업에 영향을 주는 것 — 역할·스택·일의 형태·목표·기본값·금지
 - **상세** (`persona import --detail <주제>`): 특정 작업에서만 필요한 것 — 팀 구성, 도메인 용어, 인프라 구성, 과거 결정 기록, 선호 라이브러리 표
 
-상세는 주입되지 않고 이름만 색인된다. 필요할 때 `harness persona show <주제>` 로 읽는다.
+상세는 주입되지 않고 이름만 색인된다. 필요할 때 `knack persona show <주제>` 로 읽는다.
 
 ## 절차
 
-1. 원자료를 받는다 (대화, 파일, `cat me.md | harness persona import -`).
+1. 원자료를 받는다 (대화, 파일, `cat me.md | knack persona import -`).
 2. 위 기준으로 걸러 core 항목과 상세 주제로 나눈다. **추측으로 채우지 않는다** — 모르는 것은 사용자에게 묻거나 비워 둔다.
 3. 저장한다.
    ```bash
-   harness persona init                                  # 없을 때만
-   harness persona set role "백엔드. 사내 결제 서비스 담당"
-   harness persona set defaults "새 의존성은 먼저 묻는다; 스키마 변경은 마이그레이션 파일로만"
-   harness persona import --detail db schema-notes.md    # 상세는 파일로
+   knack persona init                                  # 없을 때만
+   knack persona set role "백엔드. 사내 결제 서비스 담당"
+   knack persona set defaults "새 의존성은 먼저 묻는다; 스키마 변경은 마이그레이션 파일로만"
+   knack persona import --detail db schema-notes.md    # 상세는 파일로
    ```
    값에 `;` 를 쓰면 목록으로 저장된다. 통째로 바꿀 때는 `persona import <파일|->`.
-4. `harness persona check` 로 형식·길이를 확인한다.
-5. 사용자에게 저장한 내용을 보여주고 승인받은 뒤 `harness install --dry-run` → `harness install` 로 반영한다.
-   (설치하지 않으면 지시 블록에 들어가지 않는다. `harness-stale` 훅이 다음 세션에 알려 준다.)
+4. `knack persona check` 로 형식·길이를 확인한다.
+5. 사용자에게 저장한 내용을 보여주고 승인받은 뒤 `knack install --dry-run` → `knack install` 로 반영한다.
+   (설치하지 않으면 지시 블록에 들어가지 않는다. `knack-stale` 훅이 다음 세션에 알려 준다.)
 
 ## 작업 중 사실이 드러났을 때
 
@@ -60,9 +60,9 @@ core 는 매 세션 지시 블록에 주입되므로 짧아야 하고, 나머지
 페르소나가 실제로 결과를 좋게 하는지는 측정할 수 있다.
 
 ```bash
-harness persona disable && harness install && harness bench run --label persona-off
-harness persona enable  && harness install && harness bench run --label persona-on
-harness bench compare persona-off persona-on
+knack persona disable && knack install && knack bench run --label persona-off
+knack persona enable  && knack install && knack bench run --label persona-on
+knack bench compare persona-off persona-on
 ```
 
 작업 세트에는 **페르소나가 없으면 되묻거나 틀리게 추측할 작업**을 넣는다 (예: 스택을 명시하지 않은

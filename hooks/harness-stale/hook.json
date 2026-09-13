@@ -1,9 +1,0 @@
-{
-  "name": "harness-stale",
-  "description": "세션 시작 시 설치본이 하네스 레포와 다르면(스킬·룰·서브에이전트·훅) 알려서 harness install 을 놓치지 않게 한다.",
-  "enabled": true,
-  "command": "stale.py",
-  "targets": {
-    "claude": { "event": "SessionStart", "timeout": 10 }
-  }
-}

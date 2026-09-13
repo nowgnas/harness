@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # smoke.sh — 임시 HOME 에서 설치·조회·관리·훅·모델 라우팅을 검증한다. 실제 설정과 이 레포는 건드리지 않는다.
 set -u
-HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+KNACK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" CODEX_HOME="$TMP/home/.codex"
 mkdir -p "$HOME/.claude/agents" "$CODEX_HOME"
-INSTALL="$HARNESS_DIR/install.sh"
-H="$HOME/.local/bin/harness"
-GUARD="$HARNESS_DIR/hooks/guard-agent-config/guard.py"
-ROLES="$CODEX_HOME/harness/agents"
+INSTALL="$KNACK_DIR/install.sh"
+H="$HOME/.local/bin/knack"
+GUARD="$KNACK_DIR/hooks/guard-agent-config/guard.py"
+ROLES="$CODEX_HOME/knack/agents"
 FAIL=0
 
 ok()   { echo "  ✓ $1"; }
@@ -26,7 +26,7 @@ toml_ok() { [ -z "$TOMLPY" ] || "$TOMLPY" -c 'import tomllib,sys; tomllib.load(o
 TOML_NOTE="${TOMLPY:+tomllib}"; TOML_NOTE="${TOML_NOTE:-tomllib 없음 — 문법 검사 생략}"
 
 echo "▶ 구조"
-for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
+for f in "$KNACK_DIR"/skills/*/SKILL.md; do
   d="$(dirname "$f")"; s="$(basename "$d")"
   check "$s: frontmatter name 일치" '[ "$(sed -n "s/^name: *//p" "$f" | head -1)" = "$s" ]'
   check "$s: description 존재" 'grep -qE "^description: .{20,}" "$f"'
@@ -37,11 +37,11 @@ for f in "$HARNESS_DIR"/skills/*/SKILL.md; do
   done
   check "$s: 참조 파일 존재${missing:+ (없음:$missing)}" '[ -z "$missing" ]'
 done
-for f in "$HARNESS_DIR"/rules/*.md; do
+for f in "$KNACK_DIR"/rules/*.md; do
   check "rule $(basename "$f"): name·description·load" 'grep -q "^name: " "$f" && grep -q "^description: " "$f" && grep -qE "^load: (always|on-demand)$" "$f"'
 done
-check "USAGE.md 에 모든 스킬 안내" '( for s in $(ls "$HARNESS_DIR/skills"); do grep -q "\`$s\`" "$HARNESS_DIR/skills/harness-help/USAGE.md" || exit 1; done )'
-check "harness doctor (레포 구조·모델 라우팅) 문제 없음" 'python3 "$HARNESS_DIR/lib/harness.py" doctor > "$TMP/doctor0.txt" 2>&1 || grep -q "문제 0" "$TMP/doctor0.txt"'
+check "USAGE.md 에 모든 스킬 안내" '( for s in $(ls "$KNACK_DIR/skills"); do grep -q "\`$s\`" "$KNACK_DIR/skills/knack-help/USAGE.md" || exit 1; done )'
+check "knack doctor (레포 구조·모델 라우팅) 문제 없음" 'python3 "$KNACK_DIR/lib/knack.py" doctor > "$TMP/doctor0.txt" 2>&1 || grep -q "문제 0" "$TMP/doctor0.txt"'
 
 echo "▶ 글로벌 설치"
 printf '@RTK.md\n' > "$HOME/.claude/CLAUDE.md"
@@ -53,7 +53,7 @@ cat > "$CODEX_HOME/hooks.json" <<'EOF'
 {"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi", "timeout": 30}]}]}}
 EOF
 printf 'model = "gpt-5.6-luna"\nmodel_reasoning_effort = "medium"\n\n[mcp_servers.cx]\ncommand = "y"\n[mcp_servers.cx.env]\nA = "b"\n' > "$CODEX_HOME/config.toml"
-ln -s "$HARNESS_DIR/adapters/claude/agents/impl-reviewer.md" "$HOME/.claude/agents/impl-reviewer.md"   # 옛 구조의 끊어진 링크
+ln -s "$KNACK_DIR/adapters/claude/agents/impl-reviewer.md" "$HOME/.claude/agents/impl-reviewer.md"   # 옛 구조의 끊어진 링크
 printf -- '---\nname: my-agent\ndescription: mine\n---\nmine\n' > "$HOME/.claude/agents/my-agent.md"
 cp "$HOME/.claude/settings.json" "$TMP/orig-settings.json"
 cp "$CODEX_HOME/hooks.json" "$TMP/orig-codex-hooks.json"
@@ -61,34 +61,34 @@ cp "$CODEX_HOME/config.toml" "$TMP/orig-config.toml"
 "$INSTALL" --global --agents claude,codex --dry-run > "$TMP/dry.txt"
 check "dry-run 은 아무것도 바꾸지 않음" '[ ! -e "$HOME/.claude/skills" ] && json_eq "$HOME/.claude/settings.json" "$TMP/orig-settings.json" && cmp -s "$CODEX_HOME/config.toml" "$TMP/orig-config.toml"'
 "$INSTALL" --global --agents claude,codex > "$TMP/out1.txt"
-for s in $(ls "$HARNESS_DIR/skills"); do
-  check "스킬 링크: $s" '[ "$(readlink "$HOME/.claude/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ] && [ "$(readlink "$HOME/.agents/skills/'$s'")" = "$HARNESS_DIR/skills/'$s'" ]'
+for s in $(ls "$KNACK_DIR/skills"); do
+  check "스킬 링크: $s" '[ "$(readlink "$HOME/.claude/skills/'$s'")" = "$KNACK_DIR/skills/'$s'" ] && [ "$(readlink "$HOME/.agents/skills/'$s'")" = "$KNACK_DIR/skills/'$s'" ]'
 done
-for a in "$HARNESS_DIR"/agents/*.md; do
+for a in "$KNACK_DIR"/agents/*.md; do
   n="$(basename "$a")"; A="$HOME/.claude/agents/$n"
-  check "Claude 서브에이전트 생성: $n" '[ -f "$A" ] && [ ! -L "$A" ] && contains "$A" "harness:generated" && grep -q "^model: " "$A" && ! grep -qE "^(task|sandbox): " "$A"'
+  check "Claude 서브에이전트 생성: $n" '[ -f "$A" ] && [ ! -L "$A" ] && contains "$A" "knack:generated" && grep -q "^model: " "$A" && ! grep -qE "^(task|sandbox): " "$A"'
   check "Codex 역할 생성: ${n%.md}" '[ -f "$ROLES/${n%.md}.toml" ] && contains "$CODEX_HOME/config.toml" "[agents.${n%.md}]" && toml_ok "$ROLES/${n%.md}.toml"'
 done
 check "작업별 모델: git-ops=sonnet, impl-reviewer=opus" 'grep -q "^model: sonnet$" "$HOME/.claude/agents/git-ops.md" && grep -q "^model: opus$" "$HOME/.claude/agents/impl-reviewer.md"'
 check "Codex 역할 모델·effort·sandbox" 'contains "$ROLES/git-ops.toml" "model = \"gpt-5.6-sol\"" && contains "$ROLES/git-ops.toml" "model_reasoning_effort = \"medium\"" && contains "$ROLES/impl-reviewer.toml" "model = \"gpt-6-astra\"" && contains "$ROLES/repo-explorer.toml" "sandbox_mode = \"read-only\"" && ! contains "$ROLES/git-ops.toml" "sandbox_mode"'
 check "Codex config.toml: 기존 내용 보존 + 역할 블록 ($TOML_NOTE)" 'contains "$CODEX_HOME/config.toml" "[mcp_servers.cx]" && [ "$(head -1 "$CODEX_HOME/config.toml")" = "model = \"gpt-5.6-luna\"" ] && contains "$CODEX_HOME/config.toml" "config_file = \"$ROLES/git-ops.toml\"" && toml_ok "$CODEX_HOME/config.toml"'
 check "외부 서브에이전트는 그대로" '[ "$(cat "$HOME/.claude/agents/my-agent.md" | tail -1)" = "mine" ]'
-check "harness CLI 링크" '[ "$(readlink "$H")" = "$HARNESS_DIR/bin/harness" ]'
+check "knack CLI 링크" '[ "$(readlink "$H")" = "$KNACK_DIR/bin/knack" ]'
 check "CLAUDE.md 기존 내용 보존" '[ "$(head -1 "$HOME/.claude/CLAUDE.md")" = "@RTK.md" ]'
-check "CLAUDE.md: always 룰 import" 'contains "$HOME/.claude/CLAUDE.md" "@$HARNESS_DIR/rules/10-core.md" && contains "$HOME/.claude/CLAUDE.md" "@$HARNESS_DIR/rules/40-harness.md"'
+check "CLAUDE.md: always 룰 import" 'contains "$HOME/.claude/CLAUDE.md" "@$KNACK_DIR/rules/10-core.md" && contains "$HOME/.claude/CLAUDE.md" "@$KNACK_DIR/rules/40-knack.md"'
 check "CLAUDE.md: on-demand 룰은 import 없이 색인만" '! contains "$HOME/.claude/CLAUDE.md" "rules/50-git.md" && contains "$HOME/.claude/CLAUDE.md" "- \`git\` — "'
 check "CLAUDE.md: 작업 유형별 모델 색인" 'contains "$HOME/.claude/CLAUDE.md" "\`git-ops\` 서브에이전트에 위임 · sonnet"'
 check "Codex AGENTS.md: 기존 내용 보존 + 룰 본문" 'contains "$CODEX_HOME/AGENTS.md" "# existing codex rules" && contains "$CODEX_HOME/AGENTS.md" "# 작업 원칙" && contains "$CODEX_HOME/AGENTS.md" "# 하네스 관리"'
 check "Codex AGENTS.md: frontmatter·on-demand 본문 제외" '! contains "$CODEX_HOME/AGENTS.md" "load: always" && ! contains "$CODEX_HOME/AGENTS.md" "# Git 작업"'
-check "Codex AGENTS.md: 역할 위임 색인 + 상위 모델 권장" 'contains "$CODEX_HOME/AGENTS.md" "\`git-ops\` 역할로 위임 (spawn_agent) · gpt-5.6-sol/medium" && contains "$CODEX_HOME/AGENTS.md" "harness run <작업>"'
+check "Codex AGENTS.md: 역할 위임 색인 + 상위 모델 권장" 'contains "$CODEX_HOME/AGENTS.md" "\`git-ops\` 역할로 위임 (spawn_agent) · gpt-5.6-sol/medium" && contains "$CODEX_HOME/AGENTS.md" "knack run <작업>"'
 check "Claude 훅: 기존 훅·모델 보존 + guard 추가" 'python3 -c "
 import json; d=json.load(open(\"$HOME/.claude/settings.json\"))
 assert d[\"model\"]==\"opus[1m]\" and d[\"hooks\"][\"PermissionRequest\"][0][\"hooks\"][0][\"type\"]==\"http\"
-g=d[\"hooks\"][\"PreToolUse\"][-1]; assert g[\"matcher\"]==\"Write|Edit|MultiEdit|Bash\" and \"--harness-hook guard-agent-config\" in g[\"hooks\"][0][\"command\"]"'
+g=d[\"hooks\"][\"PreToolUse\"][-1]; assert g[\"matcher\"]==\"Write|Edit|MultiEdit|Bash\" and \"--knack-hook guard-agent-config\" in g[\"hooks\"][0][\"command\"]"'
 check "Codex 훅: 기존 훅 보존 + guard 추가 (matcher 없음)" 'python3 -c "
 import json; d=json.load(open(\"$CODEX_HOME/hooks.json\"))
 assert d[\"hooks\"][\"SessionStart\"][0][\"hooks\"][0][\"command\"]==\"echo hi\"
-g=d[\"hooks\"][\"PreToolUse\"][-1]; assert \"matcher\" not in g and \"--harness-hook guard-agent-config\" in g[\"hooks\"][0][\"command\"]"'
+g=d[\"hooks\"][\"PreToolUse\"][-1]; assert \"matcher\" not in g and \"--knack-hook guard-agent-config\" in g[\"hooks\"][0][\"command\"]"'
 
 echo "▶ 재설치 (멱등성)"
 snap() { cat "$HOME/.claude/CLAUDE.md" "$CODEX_HOME/AGENTS.md" "$HOME/.claude/settings.json" "$CODEX_HOME/hooks.json" "$CODEX_HOME/config.toml" "$HOME"/.claude/agents/*.md "$ROLES"/*.toml | cksum; }
@@ -136,7 +136,7 @@ check "list --json 파싱 가능" '"$H" list --all --json | python3 -c "import j
 check "show --toc: 목차와 줄 수" 'grep -q "5. 게이트.*줄)" "$TMP/toc.txt"'
 "$H" show skill feature-implementation --section 5 > "$TMP/sec.txt"
 check "show --section 5: 해당 섹션만" 'contains "$TMP/sec.txt" "Definition of Ready" && ! contains "$TMP/sec.txt" "## 6."'
-full=$(wc -c < "$HARNESS_DIR/skills/feature-implementation/SKILL.md"); part=$(wc -c < "$TMP/sec.txt")
+full=$(wc -c < "$KNACK_DIR/skills/feature-implementation/SKILL.md"); part=$(wc -c < "$TMP/sec.txt")
 check "section 출력이 전체보다 작음 (${part}B / ${full}B)" '[ "$part" -lt "$((full / 3))" ]'
 check "show ref --section 제목" '"$H" show ref java-spring --section "로컬 실행" | grep -q bootRun'
 check "show ref --path" '[ -f "$("$H" show ref review-checklist --path)" ]'
@@ -161,17 +161,56 @@ deny_case "npx skills add" '{"tool_name":"Bash","tool_input":{"command":"npx ski
 allow_case "ls ~/.claude/skills 2>/dev/null" '{"tool_name":"Bash","tool_input":{"command":"ls ~/.claude/skills 2>/dev/null"}}'
 allow_case "Write /tmp 파일" '{"tool_name":"Write","tool_input":{"file_path":"/tmp/foo.txt"}}'
 allow_case "하네스 링크를 통한 수정" "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$HOME/.claude/skills/bug-fix/SKILL.md\"}}"
-allow_case "harness install" '{"tool_name":"Bash","tool_input":{"command":"harness install --dry-run"}}'
+allow_case "knack install" '{"tool_name":"Bash","tool_input":{"command":"knack install --dry-run"}}'
 allow_case "잘못된 JSON" 'not json'
+
+echo "▶ 개명 마이그레이션 (harness → knack)"
+# 개명 전 이름으로 설치된 흔적을 만들고, 새 설치기가 걷어내는지 본다
+MHOME="$TMP/mig"; mkdir -p "$MHOME/.claude/skills" "$MHOME/.agents/skills" "$MHOME/.local/bin" "$MHOME/.codex/harness/agents"
+ln -s "$KNACK_DIR/skills/harness-help" "$MHOME/.claude/skills/harness-help"        # 같은 레포 (개명으로 끊어짐)
+ln -s "/nonexistent/harness/skills/harness-manage" "$MHOME/.agents/skills/harness-manage"  # 레포 폴더까지 개명한 경우
+ln -s "$KNACK_DIR/bin/harness" "$MHOME/.local/bin/harness"
+ln -s "$KNACK_DIR/skills/bug-fix" "$MHOME/.claude/skills/남의링크"                  # 건드리면 안 되는 것
+printf '@내룰.md\n\n<!-- harness:start (managed by x) -->\n@%s/rules/10-core.md\n<!-- harness:end -->\n' "$KNACK_DIR" > "$MHOME/.claude/CLAUDE.md"
+printf '# 내 코덱스 룰\n\n<!-- harness:start (managed by x) -->\n옛 룰 본문\n<!-- harness:end -->\n' > "$MHOME/.codex/AGENTS.md"
+printf 'model = "gpt-5.6-luna"\n\n# harness:start (managed by x)\n[agents.git-ops]\ndescription = "old"\n# harness:end\n' > "$MHOME/.codex/config.toml"
+python3 -c '
+import json, sys
+repo = sys.argv[1]
+mine = {"hooks": [{"type": "command", "command": "echo mine", "timeout": 5}]}
+old = {"hooks": [{"type": "command",
+                  "command": "\"" + repo + "/hooks/guard-agent-config/guard.py\" --harness-hook guard-agent-config",
+                  "timeout": 10}]}
+json.dump({"hooks": {"PreToolUse": [mine, old]}}, open(sys.argv[2], "w"))
+' "$KNACK_DIR" "$MHOME/.claude/settings.json"
+printf 'x\n' > "$MHOME/.codex/harness/agents/git-ops.toml"
+HOME="$MHOME" CODEX_HOME="$MHOME/.codex" "$INSTALL" --global --agents claude,codex > "$TMP/mig.txt" 2>&1
+check "구 스킬 링크 제거 (같은 레포·폴더 개명 둘 다)" '[ ! -e "$MHOME/.claude/skills/harness-help" ] && [ ! -L "$MHOME/.claude/skills/harness-help" ] && [ ! -L "$MHOME/.agents/skills/harness-manage" ]'
+check "구 CLI 링크 제거, 새 링크 생성" '[ ! -L "$MHOME/.local/bin/harness" ] && [ -L "$MHOME/.local/bin/knack" ]'
+check "하네스가 아닌 링크는 보존" '[ -L "$MHOME/.claude/skills/남의링크" ]'
+check "지시 블록: 구 블록 제거 + 신 블록 1개 (claude·codex)" '
+  [ "$(grep -c "harness:start" "$MHOME/.claude/CLAUDE.md")" = 0 ] && [ "$(grep -c "knack:start" "$MHOME/.claude/CLAUDE.md")" = 1 ] &&
+  [ "$(grep -c "harness:start" "$MHOME/.codex/AGENTS.md")" = 0 ] && [ "$(grep -c "knack:start" "$MHOME/.codex/AGENTS.md")" = 1 ]'
+check "사용자 내용 보존" 'grep -q "@내룰.md" "$MHOME/.claude/CLAUDE.md" && grep -q "# 내 코덱스 룰" "$MHOME/.codex/AGENTS.md"'
+check "config.toml 역할 블록 교체" '[ "$(grep -c "harness:start" "$MHOME/.codex/config.toml")" = 0 ] && [ "$(grep -c "knack:start" "$MHOME/.codex/config.toml")" = 1 ]'
+check "구 훅 표식 항목 교체 (사용자 훅 보존)" 'python3 -c "
+import json
+d=json.load(open(\"$MHOME/.claude/settings.json\"))
+cmds=[h[\"command\"] for g in d[\"hooks\"][\"PreToolUse\"] for h in g[\"hooks\"]]
+assert any(c==\"echo mine\" for c in cmds), cmds
+assert not any(\"--harness-hook\" in c for c in cmds), cmds
+assert any(\"--knack-hook guard-agent-config\" in c for c in cmds), cmds"'
+check "구 Codex 역할 폴더 제거" '[ ! -d "$MHOME/.codex/harness/agents" ]'
+check "마이그레이션 후 status 전부 OK" 'HOME="$MHOME" CODEX_HOME="$MHOME/.codex" "$INSTALL" --status --global --agents claude,codex 2>&1 | grep -vqE "^  (STALE|BROKEN)"'
 
 echo "▶ 페르소나"
 # 실제 core.md 를 건드리지 않도록 레포 복사본에서 검증한다
 PREPO="$TMP/persona-repo"; mkdir -p "$PREPO"
-cp -R "$HARNESS_DIR/lib" "$HARNESS_DIR/bin" "$HARNESS_DIR/rules" "$HARNESS_DIR/skills" "$HARNESS_DIR/agents" \
-      "$HARNESS_DIR/hooks" "$HARNESS_DIR/persona" "$HARNESS_DIR/models.json" "$HARNESS_DIR/install.sh" "$PREPO/"
+cp -R "$KNACK_DIR/lib" "$KNACK_DIR/bin" "$KNACK_DIR/rules" "$KNACK_DIR/skills" "$KNACK_DIR/agents" \
+      "$KNACK_DIR/hooks" "$KNACK_DIR/persona" "$KNACK_DIR/models.json" "$KNACK_DIR/install.sh" "$PREPO/"
 rm -f "$PREPO/persona/core.md" "$PREPO/persona/.disabled"; rm -f "$PREPO"/persona/detail/*.md
-PH="python3 $PREPO/lib/harness.py"
-check "미설정: init 안내" '$PH persona | grep -q "harness persona init"'
+PH="python3 $PREPO/lib/knack.py"
+check "미설정: init 안내" '$PH persona | grep -q "knack persona init"'
 check "미설정: 주입 블록 없음" '[ -z "$($PH persona-block)" ]'
 $PH persona init > /dev/null
 check "init: 템플릿 복사" '[ -f "$PREPO/persona/core.md" ]'
@@ -201,15 +240,15 @@ check "설치: 페르소나가 룰 앞에 온다" '[ "$(grep -n "결제 백엔�
 check "설치 후 status 전부 OK" 'HOME="$PHOME" CODEX_HOME="$PHOME/.codex" "$PREPO/install.sh" --status --global --agents claude,codex 2>&1 | grep -vq "^  STALE"'
 
 echo "▶ stale 감지 훅"
-STALE_HOOK="$HARNESS_DIR/hooks/harness-stale/stale.py"
+STALE_HOOK="$KNACK_DIR/hooks/knack-stale/stale.py"
 stale_out() { printf '%s' "${1-\{\}}" | python3 "$STALE_HOOK"; }
 check "훅 등록: Claude SessionStart (codex 는 대상 아님)" 'python3 -c "
 import json
 d=json.load(open(\"$HOME/.claude/settings.json\"))
 cmds=[h[\"command\"] for g in d[\"hooks\"][\"SessionStart\"] for h in g[\"hooks\"]]
-assert any(\"--harness-hook harness-stale\" in c for c in cmds), cmds
+assert any(\"--knack-hook knack-stale\" in c for c in cmds), cmds
 c=json.load(open(\"$CODEX_HOME/hooks.json\"))
-assert not any(\"harness-stale\" in h[\"command\"] for g in c[\"hooks\"][\"SessionStart\"] for h in g[\"hooks\"])"'
+assert not any(\"knack-stale\" in h[\"command\"] for g in c[\"hooks\"][\"SessionStart\"] for h in g[\"hooks\"])"'
 check "설치·최신 상태에서는 조용함" '[ -z "$(stale_out)" ]'
 cp "$HOME/.claude/agents/git-ops.md" "$TMP/git-ops.bak"
 printf '\n손댄 줄\n' >> "$HOME/.claude/agents/git-ops.md"
@@ -217,7 +256,7 @@ check "설치본이 다르면 SessionStart 맥락으로 알림" 'stale_out | pyt
 import json,sys
 d=json.load(sys.stdin)[\"hookSpecificOutput\"]
 assert d[\"hookEventName\"]==\"SessionStart\"
-assert \"harness install\" in d[\"additionalContext\"]
+assert \"knack install\" in d[\"additionalContext\"]
 assert \"git-ops\" in d[\"additionalContext\"]"'
 cp "$TMP/git-ops.bak" "$HOME/.claude/agents/git-ops.md"
 check "깨진 입력에도 통과 (fail-open)" 'stale_out "not json" >/dev/null 2>&1'
@@ -227,11 +266,11 @@ echo "▶ 충돌·정리"
 rm "$HOME/.claude/skills/trace-flow"; mkdir -p "$HOME/.claude/skills/trace-flow"; echo mine > "$HOME/.claude/skills/trace-flow/SKILL.md"
 rm "$HOME/.claude/agents/git-ops.md"; printf -- '---\nname: git-ops\ndescription: mine\n---\nmine\n' > "$HOME/.claude/agents/git-ops.md"
 "$INSTALL" --global --agents claude > "$TMP/out3.txt"
-check "기존 스킬·서브에이전트는 SKIP" 'contains "$TMP/out3.txt" "SKIP" && [ ! -L "$HOME/.claude/skills/trace-flow" ] && ! contains "$HOME/.claude/agents/git-ops.md" "harness:generated"'
+check "기존 스킬·서브에이전트는 SKIP" 'contains "$TMP/out3.txt" "SKIP" && [ ! -L "$HOME/.claude/skills/trace-flow" ] && ! contains "$HOME/.claude/agents/git-ops.md" "knack:generated"'
 "$INSTALL" --global --agents claude --force > "$TMP/out4.txt"
-check "--force: 스킬 링크 교체 + 백업" '[ -L "$HOME/.claude/skills/trace-flow" ] && [ -n "$(find "$HOME/.harness-backups" -path "*trace-flow/SKILL.md" 2>/dev/null)" ]'
-check "--force: 서브에이전트 생성 + 백업" 'contains "$HOME/.claude/agents/git-ops.md" "harness:generated" && [ -n "$(find "$HOME/.harness-backups" -path "*agents/git-ops.md" 2>/dev/null)" ]'
-ln -s "$HARNESS_DIR/skills/deleted-skill" "$HOME/.claude/skills/deleted-skill"
+check "--force: 스킬 링크 교체 + 백업" '[ -L "$HOME/.claude/skills/trace-flow" ] && [ -n "$(find "$HOME/.knack-backups" -path "*trace-flow/SKILL.md" 2>/dev/null)" ]'
+check "--force: 서브에이전트 생성 + 백업" 'contains "$HOME/.claude/agents/git-ops.md" "knack:generated" && [ -n "$(find "$HOME/.knack-backups" -path "*agents/git-ops.md" 2>/dev/null)" ]'
+ln -s "$KNACK_DIR/skills/deleted-skill" "$HOME/.claude/skills/deleted-skill"
 "$INSTALL" --global --agents claude > "$TMP/out5.txt"
 check "삭제된 스킬 링크 정리 (PRUNE)" 'contains "$TMP/out5.txt" "PRUNE" && [ ! -L "$HOME/.claude/skills/deleted-skill" ]'
 "$INSTALL" --status --agents claude,codex > "$TMP/status.txt"
@@ -254,12 +293,12 @@ check "프로젝트 스킬 링크·서브에이전트" '[ -L "$P/.claude/skills/
 check "프로젝트 모드는 세션 모델을 건드리지 않음" 'json_eq "$HOME/.claude/settings.json" "$TMP/orig-settings.json"'
 check "git status 에 하네스 파일이 안 보임" '[ -z "$(git -C "$P" status --porcelain)" ]'
 "$INSTALL" --project "$P" --agents claude,codex --uninstall > /dev/null
-check "프로젝트 제거" '[ ! -e "$P/.claude/skills/repo-onboarding" ] && [ ! -e "$P/.claude/agents/git-ops.md" ] && ! contains "$P/.git/info/exclude" "harness:start"'
+check "프로젝트 제거" '[ ! -e "$P/.claude/skills/repo-onboarding" ] && [ ! -e "$P/.claude/agents/git-ops.md" ] && ! contains "$P/.git/info/exclude" "knack:start"'
 
 echo "▶ 관리 명령 (레포 복사본에서)"
 C="$TMP/hcopy"; mkdir -p "$C"
-(cd "$HARNESS_DIR" && tar cf - --exclude .git .) | (cd "$C" && tar xf -)
-CH="$C/bin/harness"
+(cd "$KNACK_DIR" && tar cf - --exclude .git .) | (cd "$C" && tar xf -)
+CH="$C/bin/knack"
 "$CH" new skill demo-skill > /dev/null
 check "new skill" '[ -f "$C/skills/demo-skill/SKILL.md" ] && "$CH" list skills | grep -q demo-skill'
 "$CH" new rule team-style > /dev/null
@@ -274,13 +313,13 @@ printf -- '---\nname: beta\ndescription: beta skill for test\n---\n# B\n' > "$TM
 "$CH" add skill "$TMP/ext" > "$TMP/add1.txt" 2>&1; rc=$?
 check "add: 여러 스킬이면 --subdir 요구 (exit 2)" '[ $rc -eq 2 ] && contains "$TMP/add1.txt" "--subdir alpha"'
 "$CH" add skill "$TMP/ext" --subdir alpha > /dev/null
-check "add 로컬 경로" '[ -f "$C/skills/alpha/SKILL.md" ] && contains "$C/skills/alpha/.harness-source" "$TMP/ext"'
+check "add 로컬 경로" '[ -f "$C/skills/alpha/SKILL.md" ] && contains "$C/skills/alpha/.knack-source" "$TMP/ext"'
 mkdir -p "$TMP/extrepo/skills/gamma"
 printf -- '---\nname: gamma\ndescription: gamma skill for test\n---\n# G\n' > "$TMP/extrepo/skills/gamma/SKILL.md"
 printf '#!/bin/sh\necho hi\n' > "$TMP/extrepo/skills/gamma/run.sh"; chmod +x "$TMP/extrepo/skills/gamma/run.sh"
 (cd "$TMP/extrepo" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
 "$CH" add skill "file://$TMP/extrepo" --subdir skills/gamma > "$TMP/add2.txt"
-check "add git URL: 출처·커밋 기록" 'python3 -c "import json; d=json.load(open(\"$C/skills/gamma/.harness-source\")); assert len(d[\"commit\"])==40 and d[\"subdir\"]==\"skills/gamma\""'
+check "add git URL: 출처·커밋 기록" 'python3 -c "import json; d=json.load(open(\"$C/skills/gamma/.knack-source\")); assert len(d[\"commit\"])==40 and d[\"subdir\"]==\"skills/gamma\""'
 check "add: 실행 파일 검토 경고" 'contains "$TMP/add2.txt" "실행 가능한 파일"'
 check "add: 중복은 거부" '! "$CH" add skill "$TMP/ext" --subdir alpha >/dev/null 2>&1'
 mkdir -p "$HOME/.claude/skills/legacy"
@@ -301,8 +340,8 @@ check "변경된 작업 모델이 서브에이전트에 반영" 'grep -q "^model
 check "복사본 doctor 문제 없음" '"$CH" doctor > "$TMP/doctor2.txt" 2>&1; grep -q "문제 0" "$TMP/doctor2.txt"'
 "$C/install.sh" --uninstall --agents claude,codex > /dev/null
 
-echo "▶ 사용량 집계 (harness usage)"
-HB="$HARNESS_DIR/bin/harness"
+echo "▶ 사용량 집계 (knack usage)"
+HB="$KNACK_DIR/bin/knack"
 UP="$HOME/.claude/projects/-uproj"; mkdir -p "$UP/sess1/subagents" "$TMP/uproj"
 cat > "$UP/sess1.jsonl" <<EOF
 {"type":"user","timestamp":"2026-09-10T00:00:00Z","cwd":"$TMP/uproj","sessionId":"sess1","message":{"role":"user","content":"hi"}}
@@ -332,7 +371,7 @@ assert (c[\"input\"],c[\"cache_read\"],c[\"output\"],c[\"reasoning\"],c[\"calls\
 check "usage --by skill (텍스트)" '"$HB" usage --since 2000-01-01 --by skill | grep -q "bug-fix"'
 check "usage --cwd 필터" '[ "$("$HB" usage --since 2000-01-01 --cwd "$TMP/uproj" --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 3 ] && [ "$("$HB" usage --since 2000-01-01 --cwd /nonexistent --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 0 ]'
 
-echo "▶ 벤치 (harness bench)"
+echo "▶ 벤치 (knack bench)"
 "$INSTALL" --global --agents claude,codex > /dev/null   # baseline 비교를 위해 하네스를 다시 적용
 BR="$TMP/brepo"; mkdir -p "$BR"; (cd "$BR" && git init -q && echo a > a.txt && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
 cat > "$TMP/tasks.json" <<EOF
@@ -357,7 +396,7 @@ echo '{"type":"thread.started","thread_id":"th-bench"}'
 echo '{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":60,"output_tokens":7}}'
 EOF
 chmod +x "$TMP/fakeclaude" "$TMP/fakecodex"
-export HARNESS_CLAUDE_BIN="$TMP/fakeclaude" HARNESS_CODEX_BIN="$TMP/fakecodex" HARNESS_BENCH_DIR="$TMP/bench"
+export KNACK_CLAUDE_BIN="$TMP/fakeclaude" KNACK_CODEX_BIN="$TMP/fakecodex" KNACK_BENCH_DIR="$TMP/bench"
 "$HB" bench run "$TMP/tasks.json" --label base --dry-run > "$TMP/bench-dry.txt"
 check "bench --dry-run: 작업 유형별 모델, 실행 없음" 'grep -q -- "--model sonnet" "$TMP/bench-dry.txt" && grep -q -- "--model opus" "$TMP/bench-dry.txt" && [ ! -d "$TMP/bench/results" ]'
 "$HB" bench run "$TMP/tasks.json" --label base > "$TMP/bench1.txt" 2>&1
@@ -366,7 +405,7 @@ check "bench run: check 성공/실패·로그 기반 토큰·모델 기록" 'pyt
 import json; rows=[json.loads(l) for l in open(\"$TMP/bench/results/base.jsonl\")]
 r={x[\"task\"]:x for x in rows}; assert r[\"t1\"][\"check_ok\"] is True and r[\"t2\"][\"check_ok\"] is False
 assert r[\"t1\"][\"tokens\"][\"source\"]==\"log\" and r[\"t1\"][\"tokens\"][\"cache_read\"]==300 and r[\"t1\"][\"turns\"]==2
-assert r[\"t1\"][\"model\"]==\"sonnet\" and r[\"t2\"][\"model\"]==\"opus\" and r[\"t1\"][\"mode\"]==\"current\" and r[\"t1\"][\"harness\"]==dict(claude=True, codex=True)"'
+assert r[\"t1\"][\"model\"]==\"sonnet\" and r[\"t2\"][\"model\"]==\"opus\" and r[\"t1\"][\"mode\"]==\"current\" and r[\"t1\"][\"knack\"]==dict(claude=True, codex=True)"'
 check "bench run: repeat 반영" '[ "$(wc -l < "$TMP/bench/results/exp.jsonl" | tr -d " ")" = 4 ]'
 check "bench run: worktree 정리" '[ "$(git -C "$BR" worktree list | wc -l | tr -d " ")" = 1 ]'
 "$HB" bench compare base exp > "$TMP/bench-cmp.txt"
@@ -381,24 +420,24 @@ check "bench: 잘못된 label 거부" '! "$HB" bench run "$TMP/tasks.json" --lab
 "$HB" bench baseline > "$TMP/bl.txt"
 BH="$TMP/bench/baseline-home"
 check "baseline 미러: 하네스 스킬·서브에이전트 제외, 외부 것은 유지" '[ ! -e "$BH/.claude/skills/bug-fix" ] && [ -e "$BH/.claude/skills/my-ext" ] && [ ! -e "$BH/.agents/skills/bug-fix" ] && [ ! -e "$BH/.claude/agents/git-ops.md" ] && [ -f "$BH/.claude/agents/my-agent.md" ]'
-check "baseline 미러: 룰 블록·하네스 훅·Codex 역할 블록 제외, 나머지 설정 유지" '! contains "$BH/.claude/CLAUDE.md" "harness:start" && contains "$BH/.claude/CLAUDE.md" "@RTK.md" && ! contains "$BH/.claude/settings.json" "--harness-hook" && contains "$BH/.claude/settings.json" "PermissionRequest" && ! contains "$BH/.codex/config.toml" "[agents.git-ops]" && contains "$BH/.codex/config.toml" "[mcp_servers.cx]" && ! contains "$BH/.codex/AGENTS.md" "harness:start" && contains "$BH/.codex/AGENTS.md" "# existing codex rules" && ! contains "$BH/.codex/hooks.json" "--harness-hook" && contains "$BH/.codex/hooks.json" "echo hi" && [ ! -e "$BH/.codex/harness" ]'
+check "baseline 미러: 룰 블록·하네스 훅·Codex 역할 블록 제외, 나머지 설정 유지" '! contains "$BH/.claude/CLAUDE.md" "knack:start" && contains "$BH/.claude/CLAUDE.md" "@RTK.md" && ! contains "$BH/.claude/settings.json" "--knack-hook" && contains "$BH/.claude/settings.json" "PermissionRequest" && ! contains "$BH/.codex/config.toml" "[agents.git-ops]" && contains "$BH/.codex/config.toml" "[mcp_servers.cx]" && ! contains "$BH/.codex/AGENTS.md" "knack:start" && contains "$BH/.codex/AGENTS.md" "# existing codex rules" && ! contains "$BH/.codex/hooks.json" "--knack-hook" && contains "$BH/.codex/hooks.json" "echo hi" && [ ! -e "$BH/.codex/knack" ]'
 check "baseline 미러: 세션 로그·기타 항목은 원본 링크" '[ -L "$BH/.claude/projects" ] && [ -L "$BH/.claude.json" ] && [ -L "$BH/.codex/sessions" ] && [ -L "$BH/.local" ]'
-check "baseline 미러: 실제 전역 설정은 그대로" 'contains "$HOME/.claude/CLAUDE.md" "harness:start" && [ -L "$HOME/.claude/skills/bug-fix" ] && contains "$CODEX_HOME/config.toml" "[agents.git-ops]"'
+check "baseline 미러: 실제 전역 설정은 그대로" 'contains "$HOME/.claude/CLAUDE.md" "knack:start" && [ -L "$HOME/.claude/skills/bug-fix" ] && contains "$CODEX_HOME/config.toml" "[agents.git-ops]"'
 check "baseline 보고: 제외 항목 출력" 'contains "$TMP/bl.txt" "하네스 룰 블록 제외" && contains "$TMP/bl.txt" "하네스 훅"'
 export SEEN_FILE="$TMP/seen-home.txt"
 "$HB" bench run "$TMP/tasks.json" --label bl --baseline --only t1 > "$TMP/bench3.txt" 2>&1
 check "run --baseline: 미러 HOME 으로 실행, 상태·로그 토큰 기록" '[ "$(tail -1 "$SEEN_FILE")" = "$BH" ] && python3 -c "
 import json; r=json.loads(open(\"$TMP/bench/results/bl.jsonl\").readline())
-assert r[\"mode\"]==\"baseline\" and r[\"harness\"]==dict(claude=False, codex=False) and r[\"tokens\"][\"source\"]==\"log\" and r[\"check_ok\"] is True, r"'
+assert r[\"mode\"]==\"baseline\" and r[\"knack\"]==dict(claude=False, codex=False) and r[\"tokens\"][\"source\"]==\"log\" and r[\"check_ok\"] is True, r"'
 "$HB" bench ab "$TMP/tasks.json" --repeat 1 --prefix t > "$TMP/ab.txt" 2>&1
-check "ab: baseline → harness 연속 실행 후 비교" '[ -f "$TMP/bench/results/t-baseline.jsonl" ] && [ -f "$TMP/bench/results/t-harness.jsonl" ] && grep -q "^t1 " "$TMP/ab.txt" && contains "$TMP/ab.txt" "claude=off" && contains "$TMP/ab.txt" "claude=on" && ! contains "$TMP/ab.txt" "적용 상태가 같습니다"'
+check "ab: baseline → knack 연속 실행 후 비교" '[ -f "$TMP/bench/results/t-baseline.jsonl" ] && [ -f "$TMP/bench/results/t-knack.jsonl" ] && grep -q "^t1 " "$TMP/ab.txt" && contains "$TMP/ab.txt" "claude=off" && contains "$TMP/ab.txt" "claude=on" && ! contains "$TMP/ab.txt" "적용 상태가 같습니다"'
 check "ab --dry-run: 실행 계획만" '"$HB" bench ab "$TMP/tasks.json" --repeat 2 --prefix d --dry-run | grep -q "HOME=$BH" && [ ! -f "$TMP/bench/results/d-baseline.jsonl" ]'
 "$HB" bench init > /dev/null
-check "init 기본 위치 (~/.harness-bench/tasks.json)" '[ -f "$TMP/bench/tasks.json" ]'
+check "init 기본 위치 (~/.knack-bench/tasks.json)" '[ -f "$TMP/bench/tasks.json" ]'
 check "--agent-cmd: 래퍼 명령 앞에 붙이고 --print 사용" '"$HB" bench run "$TMP/tasks.json" --label w --only t1 --dry-run --agent-cmd "headroom wrap claude --" | grep -q "headroom wrap claude -- --print"'
-check "HARNESS_CLAUDE_CMD 환경변수" 'HARNESS_CLAUDE_CMD="mywrap claude --" "$HB" run git --agent claude --print --dry-run -- x 2>/dev/null | grep -q "^mywrap claude -- --model sonnet --print"'
-check "bench --help 예시 포함" '"$HB" bench --help | grep -q "harness bench ab --repeat 2"'
-unset HARNESS_CLAUDE_BIN HARNESS_CODEX_BIN HARNESS_BENCH_DIR SEEN_FILE
+check "KNACK_CLAUDE_CMD 환경변수" 'KNACK_CLAUDE_CMD="mywrap claude --" "$HB" run git --agent claude --print --dry-run -- x 2>/dev/null | grep -q "^mywrap claude -- --model sonnet --print"'
+check "bench --help 예시 포함" '"$HB" bench --help | grep -q "knack bench ab --repeat 2"'
+unset KNACK_CLAUDE_BIN KNACK_CODEX_BIN KNACK_BENCH_DIR SEEN_FILE
 
 echo "▶ repo-scan: Spring 픽스처"
 S="$TMP/spring"; mkdir -p "$S/src/main/java/com/acme/order" "$S/src/main/resources/db/migration" "$S/src/test/java/com/acme"
@@ -426,7 +465,7 @@ printf 'spring.datasource.password: s3cr3t-value\n' > "$S/src/main/resources/app
 printf 'create table orders(id bigint);\n' > "$S/src/main/resources/db/migration/V1__init.sql"
 printf 'FROM eclipse-temurin:17\n' > "$S/Dockerfile"
 (cd "$S" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init)
-bash "$HARNESS_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "$S" > "$TMP/spring.md" 2> "$TMP/spring.err"
+bash "$KNACK_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "$S" > "$TMP/spring.md" 2> "$TMP/spring.err"
 check "Spring Boot·Java 버전" 'contains "$TMP/spring.md" "3.2.5" && contains "$TMP/spring.md" "VERSION_17"'
 check "의존성·모듈" 'contains "$TMP/spring.md" "JPA" && contains "$TMP/spring.md" "Kafka" && contains "$TMP/spring.md" "order-core"'
 check "진입점·데이터" 'contains "$TMP/spring.md" "요청 매핑 메서드 (Spring)**: 3건" && contains "$TMP/spring.md" "Kafka 리스너" && contains "$TMP/spring.md" "Flyway"'
@@ -454,7 +493,7 @@ printf '[ApiController]\n[Route("api/[controller]")]\npublic class OrdersControl
 printf 'public class AppDb : DbContext { public DbSet<Order> Orders { get; set; } }\npublic class Worker : BackgroundService { }\n' > "$D/src/Infra/AppDb.cs"
 printf '// migration\n' > "$D/src/Infra/Migrations/20240101_Init.cs"
 printf '{ "ConnectionStrings": { "Db": "Password=hunter2" } }\n' > "$D/src/Api/appsettings.json"
-bash "$HARNESS_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "$D" > "$TMP/dotnet.md" 2> "$TMP/dotnet.err"
+bash "$KNACK_DIR/skills/repo-onboarding/scripts/repo-scan.sh" "$D" > "$TMP/dotnet.md" 2> "$TMP/dotnet.err"
 check "TargetFramework·NuGet" 'contains "$TMP/dotnet.md" "net8.0" && contains "$TMP/dotnet.md" "MediatR"'
 check "솔루션 프로젝트 (폴더 제외)" 'contains "$TMP/dotnet.md" "- Api (" && ! contains "$TMP/dotnet.md" "- src ("'
 check "호스트·컨트롤러·Minimal API·BackgroundService" 'contains "$TMP/dotnet.md" "ASP.NET 호스트" && contains "$TMP/dotnet.md" "HTTP 액션" && contains "$TMP/dotnet.md" "Minimal API" && contains "$TMP/dotnet.md" "BackgroundService/HostedService"'
