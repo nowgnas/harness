@@ -8,6 +8,7 @@
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -141,7 +142,8 @@ def codex_files():
     return list(CODEX_SESSIONS.glob("*/*/*/rollout-*.jsonl")) if CODEX_SESSIONS.is_dir() else []
 
 
-def collect(agent="all", since=None, cwd=None, session=None):
+def collect(agent="all", since=None, cwd=None, session=None, stats=None):
+    """stats(dict)를 넘기면 에이전트별로 읽은 로그 수(read)와 그중 토큰 기록이 있는 수(with_usage)를 채운다."""
     jobs = []
     if agent in ("all", "claude"):
         jobs += [(parse_claude, p) for p in claude_files()]
@@ -155,6 +157,10 @@ def collect(agent="all", since=None, cwd=None, session=None):
         if since and datetime.fromtimestamp(p.stat().st_mtime, timezone.utc) < since:
             continue
         s = parse(p)
+        if stats is not None and s["start"]:
+            st = stats.setdefault(s["agent"], {"read": 0, "with_usage": 0})
+            st["read"] += 1
+            st["with_usage"] += bool(s["calls"])
         if not s["calls"] or (since and s["end"] and s["end"] < since):
             continue
         if root:
@@ -226,7 +232,13 @@ def cmd_usage(a, weights):
         since = None if a.session else parse_since(a.since)
     except ValueError as e:
         raise SystemExit(str(e))
-    sessions = collect(a.agent, since, os.getcwd() if a.here else a.cwd, a.session)
+    stats = {}
+    sessions = collect(a.agent, since, os.getcwd() if a.here else a.cwd, a.session, stats)
+    # 필드 접근이 모두 or 0 이라, 벤더가 로그 형식을 바꾸면 에러 없이 0 이 된다. 진짜 0 과 구분되게 알린다
+    for agent, st in sorted(stats.items()):
+        if st["read"] and not st["with_usage"]:
+            print(f"경고: {agent} 세션 로그 {st['read']}개를 읽었지만 토큰 기록을 하나도 찾지 못했습니다. "
+                  f"로그 형식이 바뀌었을 수 있습니다 (lib/usage.py parse_{agent}).", file=sys.stderr)
     if a.json:
         print(json.dumps([serialize(s, weights) for s in sessions], ensure_ascii=False, indent=1))
         return

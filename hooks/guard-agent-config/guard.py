@@ -7,6 +7,7 @@ Claude Code(Write/Edit/MultiEdit/Bash)와 Codex(shell, apply_patch)의 입력 �
 import json
 import os
 import re
+import shlex
 import sys
 
 HOME_FORMS = {os.path.expanduser("~"), os.path.realpath(os.path.expanduser("~"))}
@@ -19,7 +20,9 @@ WRITE_CMD = re.compile(
 REDIRECT = re.compile(r">")
 HARMLESS_REDIRECT = re.compile(r"\d*>\s*/dev/null|\d*>&\d")
 SKILLS_CLI = re.compile(r"\bskills?\s+(add|install)\b")
-KNACK_CMD = re.compile(r"(^|[\s;&|(])(knack\s|\S*/install\.sh\b)")
+SEGMENT = re.compile(r"\|\||&&|[;|\n]")
+KNACK_CMD = re.compile(r"^\s*\(?\s*(knack\s|\S*/install\.sh\b)")
+CD = re.compile(r"""^\s*cd\s+("[^"]*"|'[^']*'|[^\s;&|]+)\s*$""")
 PATCH_FILE = re.compile(r"^\*\*\* (?:Add|Update|Delete) File: (.+)$", re.M)
 
 GUIDE = ("하네스 관리 대상 경로입니다: {path}\n"
@@ -71,14 +74,46 @@ def protected_in_command(cmd, cwd):
     return None
 
 
+def expand(path, cwd):
+    path = path.strip("'\"")
+    for form in ("$HOME/", "${HOME}/"):
+        if path.startswith(form):
+            path = "~/" + path[len(form):]
+    full = os.path.expanduser(path)
+    return os.path.normpath(full if os.path.isabs(full) else os.path.join(cwd or os.getcwd(), full))
+
+
+def relative_hit(seg, cwd):
+    """상대 경로 인자가 보호 폴더를 가리키면 그 경로 (작업 폴더 자체가 보호 폴더인 경우 포함)"""
+    try:
+        words = shlex.split(seg)
+    except ValueError:
+        return None
+    for w in words[1:]:
+        if not w or w.startswith(("-", "/", "~", "$")):
+            continue
+        hit = protected_file(w, cwd)
+        if hit:
+            return hit
+    return None
+
+
 def check_command(cmd, cwd):
-    if KNACK_CMD.search(cmd):
-        return
-    if SKILLS_CLI.search(cmd):
-        deny("skills add/install 명령 (에이전트 설정 폴더에 설치됨)")
-    hit = protected_in_command(cmd, cwd)
-    if hit and (WRITE_CMD.search(cmd) or REDIRECT.search(HARMLESS_REDIRECT.sub("", cmd))):
-        deny(hit)
+    # ; && || | 로 나눈 조각마다 판정한다. knack 명령인 조각만 면제하고, cd 는 뒤 조각의 작업 폴더를 바꾼다
+    for seg in SEGMENT.split(cmd):
+        if not seg.strip() or KNACK_CMD.match(seg):
+            continue
+        m = CD.match(seg)
+        if m:
+            cwd = expand(m.group(1), cwd)
+            continue
+        if SKILLS_CLI.search(seg):
+            deny("skills add/install 명령 (에이전트 설정 폴더에 설치됨)")
+        if not (WRITE_CMD.search(seg) or REDIRECT.search(HARMLESS_REDIRECT.sub("", seg))):
+            continue
+        hit = protected_in_command(seg, cwd) or relative_hit(seg, cwd)
+        if hit:
+            deny(hit)
 
 
 def main():

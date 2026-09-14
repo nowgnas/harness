@@ -101,6 +101,8 @@ FRESH="$TMP/fresh"; mkdir -p "$FRESH/.codex"
 HOME="$FRESH" CODEX_HOME="$FRESH/.codex" "$INSTALL" --global --agents claude,codex > "$TMP/fresh1.txt" 2>&1
 HOME="$FRESH" CODEX_HOME="$FRESH/.codex" "$INSTALL" --status --global --agents claude,codex > "$TMP/fresh-status.txt" 2>&1
 check "빈 HOME: 설치 한 번으로 status 전부 OK" '! grep -qE "^  (STALE|MISSING|CONFLICT|BROKEN)" "$TMP/fresh-status.txt"'
+HOME="$FRESH" CODEX_HOME="$FRESH/.codex" "$INSTALL" --uninstall --global --agents claude,codex > /dev/null 2>&1
+check "빈 HOME: 제거하면 블록만 있던 지시 파일은 남지 않음 (0바이트 파일 X)" '[ ! -e "$FRESH/.claude/CLAUDE.md" ] && [ ! -e "$FRESH/.codex/AGENTS.md" ]'
 
 echo "▶ 모델 라우팅 CLI"
 "$H" model > "$TMP/model.txt"
@@ -173,6 +175,14 @@ allow_case "Write /tmp 파일" '{"tool_name":"Write","tool_input":{"file_path":"
 allow_case "하네스 링크를 통한 수정" "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$HOME/.claude/skills/bug-fix/SKILL.md\"}}"
 allow_case "knack install" '{"tool_name":"Bash","tool_input":{"command":"knack install --dry-run"}}'
 allow_case "잘못된 JSON" 'not json'
+deny_case "knack 이 섞인 복합 명령 (knack list && rm)" '{"tool_name":"Bash","tool_input":{"command":"knack list && rm -rf ~/.claude/skills/old"}}'
+deny_case "echo knack ; rm" '{"tool_name":"Bash","tool_input":{"command":"echo knack ; rm -rf ~/.claude/skills/foo"}}'
+deny_case "cd 보호 폴더 && 상대 경로 rm" '{"tool_name":"Bash","tool_input":{"command":"cd ~/.claude/skills && rm -rf foo"}}'
+deny_case "작업 폴더가 보호 폴더일 때 상대 경로 rm" "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf foo\"},\"cwd\":\"$HOME/.claude/skills\"}"
+deny_case "상위 폴더에서 상대 경로로 보호 폴더 rm" "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf skills/foo\"},\"cwd\":\"$HOME/.claude\"}"
+allow_case "작업 폴더가 보호 폴더여도 읽기" "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls foo\"},\"cwd\":\"$HOME/.claude/skills\"}"
+allow_case "조각별 판정: 보호 폴더 읽기 ; 다른 곳 rm" '{"tool_name":"Bash","tool_input":{"command":"ls ~/.claude/skills; rm -rf /tmp/x"}}'
+allow_case "cd 하네스 && knack install" '{"tool_name":"Bash","tool_input":{"command":"cd ~/harness && knack install"}}'
 
 echo "▶ 재설치·다중 클론"
 # 사용자용 클론(레포를 수정하는 폴더와 별도)에서 설치·재설치가 되는지
@@ -203,6 +213,13 @@ cp "$RHOME/.claude/settings.json" "$TMP/pre-dry.json"
 ri "$UCLONE/install.sh" --reinstall --dry-run --global --agents claude > "$TMP/redry.txt" 2>&1
 check "reinstall --dry-run: 안 바꾸고 안내를 붙임" 'json_eq "$RHOME/.claude/settings.json" "$TMP/pre-dry.json" && [ -L "$RHOME/.claude/skills/bug-fix" ] && grep -q "dry-run 이라 제거가 실제로" "$TMP/redry.txt"'
 check "reinstall 은 --status·--uninstall 과 함께 못 씀" '! ri "$UCLONE/install.sh" --reinstall --status > /dev/null 2>&1'
+# 레포 폴더를 옮기거나 이름을 바꾸면 링크가 끊어진다. 새 위치에서 install 하면 교체돼야 한다
+MOVED="$TMP/userclone-moved"; mv "$UCLONE" "$MOVED"
+check "폴더를 옮기면 status 가 STALE(옮겨진 폴더) 로 보고" 'ri "$MOVED/install.sh" --status --global --agents claude | grep -q "옮겨지거나 사라진 knack 폴더"'
+ri "$MOVED/install.sh" --global --agents claude,codex > "$TMP/moved.txt" 2>&1
+check "옮긴 폴더에서 install: SKIP 없이 스킬·CLI 링크 교체" '! grep -q "SKIP" "$TMP/moved.txt" && [ "$(readlink "$RHOME/.claude/skills/bug-fix")" = "$MOVED/skills/bug-fix" ] && [ "$(readlink "$RHOME/.local/bin/knack")" = "$MOVED/bin/knack" ]'
+check "옮긴 뒤 status 전부 OK" '! ri "$MOVED/install.sh" --status --global --agents claude,codex | grep -qE "^  (STALE|MISSING|CONFLICT|BROKEN)"'
+mv "$MOVED" "$UCLONE"
 
 echo "▶ 개명 마이그레이션 (harness → knack)"
 # 개명 전 이름으로 설치된 흔적을 만들고, 새 설치기가 걷어내는지 본다
@@ -420,6 +437,11 @@ import json; d=json.load(open(\"$TMP/usage.json\")); c=[s for s in d if s[\"agen
 assert (c[\"input\"],c[\"cache_read\"],c[\"output\"],c[\"reasoning\"],c[\"calls\"])==(500,2500,90,20,2), c"'
 check "usage --by skill (텍스트)" '"$HB" usage --since 2000-01-01 --by skill | grep -q "bug-fix"'
 check "usage --cwd 필터" '[ "$("$HB" usage --since 2000-01-01 --cwd "$TMP/uproj" --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 3 ] && [ "$("$HB" usage --since 2000-01-01 --cwd /nonexistent --json | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")" = 0 ]'
+check "usage: 정상 로그에서는 형식 경고 없음" '! "$HB" usage --since 2000-01-01 2>&1 | grep -q "토큰 기록을 하나도"'
+ZH="$TMP/zhome"; mkdir -p "$ZH/.claude/projects/-z"
+printf '%s\n' '{"type":"assistant","timestamp":"2026-09-10T00:00:00Z","sessionId":"z1","message":{"id":"m1","model":"claude-opus-5","content":[],"tokenUsage":{"input":10}}}' > "$ZH/.claude/projects/-z/z1.jsonl"
+HOME="$ZH" CODEX_HOME="$ZH/.codex" "$HB" usage --since 2000-01-01 > "$TMP/uz.txt" 2>&1
+check "usage: 로그는 읽혔는데 토큰 기록이 없으면 경고 (형식 변경 감지)" 'contains "$TMP/uz.txt" "claude 세션 로그 1개를 읽었지만 토큰 기록을 하나도 찾지 못했습니다"'
 
 echo "▶ 벤치 (knack bench)"
 "$INSTALL" --global --agents claude,codex > /dev/null   # baseline 비교를 위해 하네스를 다시 적용

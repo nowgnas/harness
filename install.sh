@@ -118,17 +118,18 @@ handle_link() {  # src dst
     status)
       if [ "$cur" = "$src" ]; then say OK "$(pretty "$dst")"
       elif [ -n "$cur" ] && knack_link "$cur"; then say STALE "$(pretty "$dst") (다른 knack 클론을 가리킴 → install 시 교체)"
+      elif moved_link "$dst" "$src"; then say STALE "$(pretty "$dst") (옮겨지거나 사라진 knack 폴더를 가리킴 → install 시 교체)"
       elif [ -e "$dst" ] || [ -L "$dst" ]; then say CONFLICT "$(pretty "$dst") (하네스가 아닌 파일)"
       else say MISSING "$(pretty "$dst")"; fi ;;
     uninstall)
-      if [ -n "$cur" ] && knack_link "$cur"; then
+      if { [ -n "$cur" ] && knack_link "$cur"; } || moved_link "$dst" "$src"; then
         N_CHANGE=$((N_CHANGE + 1)); say REMOVE "$(pretty "$dst")"; [ $DRY -eq 1 ] || rm "$dst"
       fi ;;
     install)
       if [ "$cur" = "$src" ]; then say OK "$(pretty "$dst")"; return; fi
       if [ -e "$dst" ] || [ -L "$dst" ]; then
-        if [ -n "$cur" ] && knack_link "$cur"; then
-          :  # 하네스(이 폴더 또는 다른 클론)의 링크 → 백업 없이 교체
+        if { [ -n "$cur" ] && knack_link "$cur"; } || moved_link "$dst" "$src"; then
+          :  # 하네스(이 폴더, 다른 클론, 옮기기 전 폴더)의 링크 → 백업 없이 교체
         elif [ $FORCE -eq 0 ]; then
           N_SKIP=$((N_SKIP + 1)); say SKIP "$(pretty "$dst") (기존 항목 존재. --force 로 백업 후 교체)"; return
         else
@@ -153,6 +154,15 @@ knack_link() {  # 링크 대상 경로
     [ -f "$root/bin/knack" ] && [ -f "$root/lib/knack.py" ] && [ -f "$root/install.sh" ] && return 0
   done
   return 1
+}
+
+# 레포 폴더를 옮기거나 이름을 바꾸면 링크 대상이 사라져 knack_link 로는 알아볼 수 없다.
+# 끊어진 링크이면서 대상의 끝 두 경로(skills/<이름>, bin/knack)가 이 레포의 원본과 같으면 우리 링크로 본다.
+moved_link() {  # dst src
+  local cur
+  [ -L "$1" ] && [ ! -e "$1" ] || return 1
+  cur="$(readlink "$1")"
+  [ "$(basename "$(dirname "$cur")")/$(basename "$cur")" = "$(basename "$(dirname "$2")")/$(basename "$2")" ]
 }
 
 # 하네스를 가리키지만 대상이 사라진 링크 정리 (스킬 삭제·이름 변경 후)
@@ -221,7 +231,8 @@ handle_block() {  # file start end content
       N_CHANGE=$((N_CHANGE + 1)); say UNBLOCK "$(pretty "$file")"
       [ $DRY -eq 1 ] && return
       backup "$file" copy
-      if [ -n "$base" ]; then printf '%s\n' "$base" > "$file"; else : > "$file"; fi ;;
+      # 블록만 있던 파일은 지운다 (설치 전 상태. 원본은 위에서 백업)
+      if [ -n "$base" ]; then printf '%s\n' "$base" > "$file"; else rm -f "$file"; fi ;;
     install)
       if [ "$current" = "$new" ]; then say OK "$(pretty "$file") (블록 최신)"; return; fi
       N_CHANGE=$((N_CHANGE + 1)); say BLOCK "$(pretty "$file") (하네스 블록 추가/갱신)"
