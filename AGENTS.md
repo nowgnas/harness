@@ -25,4 +25,4 @@
 - 훅 스크립트는 판단할 수 없는 입력을 통과시킨다(fail-open). 에이전트 작업을 훅 오류로 멈추지 않는다.
 - 언어: 사람이 읽고 고치는 문서(룰, 스킬 본문, USAGE, 템플릿)는 한국어로 쓴다. 모델만 읽는 문서(서브에이전트 본문, 리뷰 체크리스트)는 영어로 쓰고 출력은 한국어로 하라고 지시한다.
 - 스킬 description은 160자 이하로 의도가 드러나게, 본문은 70줄 이하의 목차로 쓰고 세부는 `references/`에 둔다. `knack doctor`가 점검한다.
-- 변경 후 `tests/smoke.sh`를 실행한다.
+- 변경 후 `tests/smoke.sh`를 실행한다. push·PR 때 GitHub Actions가 macOS(`/bin/bash` 3.2)와 Ubuntu에서 다시 실행한다.

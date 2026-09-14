@@ -157,6 +157,7 @@ bench/                  벤치 작업 예시
 bin/knack               CLI
 install.sh              설치/상태/제거
 tests/smoke.sh          임시 HOME에서 설치·조회·관리·훅·게이트 검증
+.github/workflows/      push·PR 때 macOS(/bin/bash 3.2)·Ubuntu에서 smoke.sh 실행
 AGENTS.md               레포 작업 가이드 (CLAUDE.md 는 이를 import)
 ```
 
